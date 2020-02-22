@@ -6,6 +6,7 @@ DATA_ROOT=${2:-CUR_DIR}
 
 mkdir -p $DATA_ROOT/anet_srl
 mkdir -p $DATA_ROOT/anet
+mkdir -p $DATA_ROOT/anet_verb
 
 function asrl_ann_dwn(){
     echo "Downloading ActivityNet SRL annotations"
@@ -36,19 +37,19 @@ function symlnk(){
     ln -s $DATA_ROOT $CUR_DIR
 }
 
-# if [ "$1" = "anet_srl_anns" ]
-# then
-#     asrl_ann_dwn
+if [ "$1" = "anet_srl_anns" ]
+then
+    asrl_ann_dwn
 
-# elif [ "$1" = "anet_feats" ]
-# then
-#     anet_feats_dwn
-# elif [ "$1" = "all" ]
-# then
-#     dwn_all
-# else
-#     echo "Failed: Use download_data.sh anet_srl_anns | anet_feats | all"
-#     exit 1
-# fi
+elif [ "$1" = "anet_feats" ]
+then
+    anet_feats_dwn
+elif [ "$1" = "all" ]
+then
+    dwn_all
+else
+    echo "Failed: Use download_data.sh anet_srl_anns | anet_feats | all"
+    exit 1
+fi
 
 symlnk

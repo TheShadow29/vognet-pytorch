@@ -1,0 +1,153 @@
+ds_name: "anet"
+ds:
+  proposal_h5: "data/anet/anet_detection_vg_fc6_feat_100rois.h5"
+  proposal_gt10_h5: "data/anet/anet_detection_vg_fc6_feat_gt10_rois.h5"
+  proposal_gt5_h5: "data/anet/anet_detection_vg_fc6_feat_gt5_rois.h5"
+  feature_root: "data/anet/fc6_feat_100rois"
+  feature_gt10_root: "data/anet/fc6_feat_10rois"
+  feature_gt5_root: "data/anet/fc6_feat_5rois"
+  seg_feature_root: "data/anet/rgb_motion_1d"
+  anet_cap_file: "data/anet/anet_captions_all_splits.json"
+  anet_ent_annot_file: "data/anet/cap_anet_trainval.json"
+  dic_anet_file: "data/anet/dic_anet.json"
+  detect_size: 431
+  trn_ann_file: "data/anet/csv_dir/train_postproc.csv"
+  val_ann_file: "data/anet/csv_dir/val_postproc.csv"
+  test_ann_file: "data/anet/csv_dir/test.csv"
+  orig_anet_ent_annot_file: "data/ActivityNet-Entities/data/anet_entities_trainval.json"
+  vg_class_file: "cache_dir/vg_object_vocab.txt"
+  split_file: "tools/anet_entities/data/split_ids_anet_entities.json"
+  grd_reference: "tools/anet_entities/data/anet_entities_cleaned_class_thresh50_trainval.json"
+  trn_verb_ent_file: "data/anet_verb/trn_verb_ent_file.csv"
+  val_verb_ent_file: "data/anet_verb/val_verb_ent_file.csv"
+  arg_vocab_file: "data/anet_verb/arg_vocab.pkl"
+  verb_ent_file: "data/anet_verb/verb_ent_file.csv"
+  verb_lemma_file: "data/anet_verb/verb_lemma_file.csv"
+  verb_lemma_dict_file: "data/anet_verb/verb_lemma_dict.json"
+  glove_stuff: "data/anet_verb/glove_vocab_dict.pkl"
+  frms_tdir: "data/anet/frames_10frm"
+  ds4_dicts: "data/anet_verb/srl_args_dict_obj_to_ind.json"
+  trn_ds4_dicts: "data/anet_verb/trn_srl_args_dict_obj_to_ind.json"
+  val_ds4_dicts: "data/anet_verb/val_srl_args_dict_obj_to_ind.json"
+  ds4_inds: "data/anet_verb/srl_annots_with_ds4_inds.csv"
+  trn_ds4_inds: "data/anet_verb/trn_srl_annots_with_ds4_inds.csv"
+  val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
+  none_word: "<none>"
+  use_gt_prop: false
+  ngt_prop: 5
+  add_prop_to_region: false
+  # how to process the data, either one sent at a time
+  # or one verb at a time.
+  proc_type: 'one_verb'
+  do_ds4: true
+  # ds4_type: 'screen'
+  ds4_type: 'sigmoid_single_q'
+  ds4_screen: 'screen_sep'
+  # ds4_type: 'single'
+  #true
+  shuffle_ds4: True
+  # either random, or ds4
+  trn_ds4_sample: 'ds4_random'
+  val_ds4_sample: 'ds4'
+mdl:
+  vsrl:
+    prop_encode_size: 256
+    seg_encode_size: 256
+    lang_encode_size: 256
+    jemb_dim: 512
+    jemb_dropout: 0.8
+    seg_verb_frm_local: true
+    seg_verb_frm_global: false
+    verb_vidf_only_verb: false
+    normalize_feats: false
+    use_vis_msk: true
+    obj_interact: true
+    obj_int_pfrm: false
+    use_rel: true
+    n_layers: 1
+    n_heads: 3
+    attn_drop: 0.2
+  interact:
+    use_frm_rel: false
+    use_rel: true
+    per_frm: true
+    cross_frm: false
+    n_layers: 1
+    n_heads: 3
+    attn_drop: 0.2
+  frm_score_sep: false
+  name: 'ssj_bce'
+  input_encoding_size: 512
+  rnn_size: 1024
+  num_layers: 2
+  drop_prob_lm: 0.5
+  fc_feat_size: 3072
+  att_feat_size: 2048
+  att_hid_size: 512
+  att_input_mode: 'both'
+  transfer_mode: 'cls'
+  enable_BUTD: False
+  att_model: 'topdown'
+  region_attn_mode: 'mix'
+  lang_use_tags: false
+  tag_dim: 8
+  loss:
+    w_att2: 0.05
+    w_grd: 0.1
+    w_cls: 0.1
+    w_lm_loss: 1
+    grad_clip: 0.1
+    only_vid_loss: false
+    loss_lambda: 1
+    loss_margin: 0.1
+    loss_margin_vid: 0.5
+    # loss_type is either
+    # cosine or bce
+    loss_type: 'bce'
+  gvd_eval_vis_word_only: false
+# loss_type: 'default'
+misc:
+  tmp_path: "tmp"
+  cache_dir: "cache_dir"
+  prop_thresh: 0.
+  exclude_bgd_det: False
+  num_sampled_frm: 10
+  num_prop_per_frm: 100
+  max_gt_box: 100
+  t_attn_size: 480
+  t_attn_mode: 'bigru'
+  seq_length: 20
+  srl_arg_length: 5
+  max_srl_in_sent: 6
+  seq_per_img: 1
+  obj_interact: true
+  disable_caption: true
+  box_per_srl_arg: 4
+  trn_ds4_sigm_num_inp: 4
+  val_ds4_sigm_num_inp: 4
+  ctx_for_seg_feats: 0
+train:
+  prob_thresh: 0.2
+  disp_interval: 100
+  lr: 1e-4
+  epochs: 10
+  bs: 8
+  nw: 4
+  bsv: 8
+  nwv: 4
+  resume: true
+  resume_path: ""
+  load_opt: false
+  load_normally: true
+  strict_load: true
+  use_reduce_lr_plateau: false
+  verbose: false
+log:
+  deb_it: 2
+verb_mdl: "bert"
+do_dist: false
+do_dp: false
+num_gpus: 1
+only_val: false
+only_test: false
+overfit_batch: false

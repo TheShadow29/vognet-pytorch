@@ -1,0 +1,3 @@
+cache_dir
+data/
+!data/README.md
