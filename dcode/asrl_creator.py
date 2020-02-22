@@ -322,8 +322,9 @@ class AnetVis(BaseVis):
 
     def save_trn_ent_file(self):
         save_fp = self.tdir / Path(self.cfg.ds.verb_ent_file)
-        self.trn_ent_verb_df.to_csv(save_fp, header=True,
-                                    index=False)
+        col_names = sorted(self.trn_ent_verb_df.columns)
+        self.trn_ent_verb_df[col_names].to_csv(save_fp, header=True,
+                                               index=False)
 
     def open_req_files(self):
         cap_annots_file = self.cache_dir / f'{self.cfg.ds.srl_caps}'
