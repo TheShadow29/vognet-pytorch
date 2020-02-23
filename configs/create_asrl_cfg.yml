@@ -20,5 +20,13 @@ ds:
   verb_ent_file: "data/anet_verb/verb_ent_file.csv"
   trn_verb_ent_file: "data/anet_verb/trn_verb_ent_file.csv"
   val_verb_ent_file: "data/anet_verb/val_verb_ent_file.csv"
+  # Object Mappings:
+  trn_ds4_dicts: "data/anet_verb/trn_srl_args_dict_obj_to_ind.json"
+  val_ds4_dicts: "data/anet_verb/val_srl_args_dict_obj_to_ind.json"
+  # ASRL with indices for SPAT/TEMP
+  trn_ds4_inds: "data/anet_verb/trn_srl_annots_with_ds4_inds.csv"
+  val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
+  # None
+  none_word: "<none>"
 misc:
   cache_dir: "cache_dir"

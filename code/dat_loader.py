@@ -1,7 +1,6 @@
 """
 Loading data correctly
 """
-# from extended_config import cfg as conf
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import Sampler
 from torch.utils.data.distributed import DistributedSampler
@@ -19,24 +18,11 @@ import copy
 from typing import Dict
 from munch import Munch
 from trn_utils import DataWrap
-# import torchtext.vocab as vocab  # use this to load glove vector
 from torchtext import vocab
-from tqdm import tqdm
-import os
-import random
-from collections import defaultdict
-from fairseq.data import Dictionary
 import ast
-from collections import Counter
 import pickle
-import copy
 from ds4_creator import create_similar_list, create_random_list
 from mdl_srl_utils import combine_first_ax
-import random
-# import warnings
-# warnings.filterwarnings('error')
-
-# np.seterr(all='warn')
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -73,7 +59,6 @@ class AnetEntDataset(Dataset):
         self.label_proposals = h5_proposal_file['dets_labels'][:]
 
         self.itemgetter = getattr(self, 'simple_item_getter')
-        # self.itemgetter = getattr(self, 'gvd_getitem')
         self.test_mode = (split_type != 'test')
         self.after_init()
 
@@ -176,11 +161,6 @@ class AnetEntDataset(Dataset):
 
         self.comm.vocab_size = len(self.comm.itow) + 1
         self.comm.detect_size = len(self.comm.itod)
-
-        # # for convenience
-        # for k in self.comm:
-        #     val = getattr(self.comm, k)
-        #     setattr(self, k, val)
 
     def create_glove_stuff(self):
         # Load the glove vocab
