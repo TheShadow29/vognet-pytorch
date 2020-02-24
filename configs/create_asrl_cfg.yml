@@ -5,6 +5,7 @@ ds:
   anet_ent_split_file: "data/anet_srl_scratch/dic_anet.json"
   anet_ent_annot_file: "data/anet_srl_scratch/cap_anet_trainval.json"
   orig_anet_ent_clss: "data/anet_srl_scratch/anet_entities_cleaned_class_thresh50_trainval.json"
+  preproc_anet_ent_clss: "data/anet_srl_scratch/anet_entities_prepocessed_clss_trainval.json"
   # After adding semantic roles, these are generated inside the cache dir
   srl_caps: "SRL_Anet_cap_annots.csv"
   srl_bert: "srl_bert_preds.pkl"
@@ -12,7 +13,7 @@ ds:
   seg_feature_root: "data/anet/rgb_motion_1d"
   feature_root: "data/anet/fc6_feat_100rois"
   # verbs and arguments to include/exclude
-  exclude_verb_set: ['be', 'see', 'show', "'s", 'can', 'continue', 'begin']
+  exclude_verb_set: ['be', 'see', 'show', "'s", 'can', 'continue', 'begin', 'start']
   include_srl_args: ['ARG0', 'ARG1', 'ARG2', 'ARGM-LOC']
   # Lemmatized verb list (created only once)
   verb_lemma_dict_file: "data/anet_verb/verb_lemma_dict.json"

@@ -89,6 +89,115 @@ def create_random_list(cfg, srl_annots, ann_row_idx):
     return inds_to_use, ds4_msk
 
 
+def create_similar_list_old(cfg, arg_dicts, srl_annots, ann_row_idx):
+    """
+    Does it for one row. Assumes annotations
+    exists and can be retrieved via `self`.
+
+    The logic:
+    Each input idx has ARG0, V, ARG1 ...,
+    (1) Pivot across one argument, say ARG0
+    (2) Retrieve all other indices such that they
+    have different ARG0, but same V, ARG1 ... (do
+    each of them separately)
+    (3) To retrieve those indices with V, ARG1 same
+    we can just do intersection of the two sets
+
+    To facilitate (2), we first create separate
+    dictionaries for each V, ARG1 etc. and then
+    just reference them via self.create_dicts
+    """
+    srl_idxs_possible = np.array(srl_annots.index)
+
+    vid_segs = srl_annots.vid_seg
+    vid_seg = vid_segs.loc[ann_row_idx]
+    srl_row = srl_annots.loc[ann_row_idx]
+
+    req_cls_pats = srl_row.req_cls_pats
+    req_cls_pats_mask = srl_row.req_cls_pats_mask
+    args_to_use = set(['V', 'ARG0', 'ARG1', 'ARG2', 'ARGM-LOC'])
+    some_inds = {}
+    arg_keys_vis_present = []
+    arg_keys_lang_present = []
+    for srl_arg, srl_arg_mask in zip(req_cls_pats, req_cls_pats_mask):
+        arg_key = srl_arg[0]
+        arg_keys_lang_present.append(arg_key)
+        if arg_key == 'V' or arg_key in args_to_use:
+            arg_keys_vis_present.append(arg_key)
+            if arg_key in args_to_use:
+                lemma_key = 'lemma_{}'.format(
+                    arg_key.replace('-', '_').replace('V', 'verb'))
+                lemma_arg = srl_row[lemma_key]
+                if isinstance(lemma_arg, list):
+                    assert all([le_arg in arg_dicts[arg_key]
+                                for le_arg in lemma_arg])
+                    if len(lemma_arg) >= 1:
+                        le_arg = lemma_arg
+                    else:
+                        le_arg = cfg.ds.none_word
+                else:
+                    le_arg = [lemma_arg]
+                # srl_ind_list = copy.deepcopy(
+                #     arg_dicts[arg_key][le_arg])
+                # srl_ind_list = arg_dicts[arg_key][le_arg][:]
+                for le_ar in le_arg:
+                    srl_ind_list = arg_dicts[arg_key][le_ar][:]
+                    srl_ind_list.remove(ann_row_idx)
+                    if arg_key not in some_inds:
+                        some_inds[arg_key] = []
+                    some_inds[arg_key] += srl_ind_list
+            # # If not groundable but in args_to_use
+            # else:
+            #     pass
+    num_arg_keys_vis = len(arg_keys_vis_present)
+    other_anns = np.random.choice(
+        srl_idxs_possible, size=10 * num_arg_keys_vis,
+        replace=False
+    ).reshape(num_arg_keys_vis, 10)
+
+    inds_to_use = {}
+    ds4_msk = {}
+    for aind, arg_key1 in enumerate(arg_keys_vis_present):
+        arg_key_to_use = [
+            ak for ak in arg_keys_vis_present if ak != arg_key1]
+        set1 = set(some_inds[arg_key_to_use[0]])
+
+        set_int1 = set1.intersection(
+            *[set(some_inds[ak]) for ak in arg_key_to_use[1:]])
+        curr_set = set(some_inds[arg_key1])
+        set_int2 = list(set_int1 - curr_set)
+
+        set_int = [s for s in set_int2 if
+                   vid_segs.loc[s] != vid_seg]
+
+        # TODO:
+        # Make replace false, currently true
+        # because some have low chances of
+        # appearing
+        if len(set_int) == 0:
+            # this means similar scenario not found
+            # inds
+            ds4_msk[arg_key1] = 0
+            inds_to_use[arg_key1] = other_anns[aind].tolist()
+            # inds_to_use[arg_key1] = [-1]
+            # cfg.ouch += 1
+            # print('ouch')
+        else:
+            ds4_msk[arg_key1] = 1
+            inds_to_use[arg_key1] = np.random.choice(
+                set_int, 10, replace=True).tolist()
+            # cfg.yolo += 1
+            # print('yolo')
+    # inds_to_use_lens = [len(v) if v[0] != -1 else 0 for k,
+    #                     v in inds_to_use.items()]
+    # if sum(inds_to_use_lens) == 0:
+    #     cfg.ouch2 += 1
+    # else:
+    #     cfg.yolo2 += 1
+
+    return inds_to_use, ds4_msk
+
+
 def create_similar_list(cfg, arg_dicts, srl_annots, ann_row_idx):
     """
     Does it for one row. Assumes annotations
@@ -123,8 +232,6 @@ def create_similar_list(cfg, arg_dicts, srl_annots, ann_row_idx):
         arg_key = srl_arg[0]
         arg_keys_lang_present.append(arg_key)
         if arg_key == 'V' or arg_key in args_to_use:
-            # If visually groundable
-            # if (srl_arg_mask[1] == 1 or arg_key == 'V'):
             arg_keys_vis_present.append(arg_key)
             if arg_key in args_to_use:
                 lemma_key = 'lemma_{}'.format(
@@ -201,14 +308,8 @@ def create_similar_list(cfg, arg_dicts, srl_annots, ann_row_idx):
 
 class AnetDSCreator:
     def __init__(self, cfg, tdir='.'):
-        import spacy
         self.cfg = cfg
         self.tdir = Path(tdir)
-
-        self.sp = spacy.load('en_core_web_sm')
-
-        # Open required files
-        self.open_req_files()
 
     def fix_via_ast(self, df):
         for k in df.columns:
@@ -217,30 +318,6 @@ class AnetDSCreator:
                 df[k] = df[k].apply(
                     lambda x: ast.literal_eval(x))
         return df
-
-    def open_req_files(self):
-        pass
-        # verb_ent_file = self.tdir / Path(self.cfg.ds.verb_ent_file)
-        # self.trn_ent_verb = pd.read_csv(verb_ent_file)
-
-        # self.verb_lemma_lookup = {"'ve": "have", "'m": "am"}
-
-        # self.lemmatized_verb_file = (self.tdir /
-        #                              Path(self.cfg.ds.verb_lemma_file))
-        # if self.lemmatized_verb_file.exists():
-        #     self.all_verbs_df = pd.read_csv(self.lemmatized_verb_file)
-
-        # self.lemmatized_verb_dict_file = (
-        #     self.tdir /
-        #     Path(self.cfg.ds.verb_lemma_dict_file)
-        # )
-        # if self.lemmatized_verb_dict_file.exists():
-        #     self.verbs_lemma_dict = json.load(
-        #         open(self.lemmatized_verb_dict_file))
-
-        # self.srl_annots = copy.deepcopy(self.trn_ent_verb)
-        # assert hasattr(self, 'srl_annots')
-        # self.srl_annots = self.fix_via_ast(self.srl_annots)
 
     def get_stats(self, req_args):
         """
@@ -254,33 +331,6 @@ class AnetDSCreator:
             c = Counter(req_args)
 
         return c.most_common()
-
-    def lemmatize_verbs(self):
-        def get_lemma(word):
-            if word in self.verb_lemma_lookup:
-                return self.verb_lemma_lookup[word]
-            words = self.sp(word)
-            out_lemma = words[0].lemma_
-            # if out_lemma in self.verb_lemma_lookup:
-            # out_lemma = self.verb_lemma_lookup[out_lemma]
-            return out_lemma
-        self.all_verbs_df = self.trn_ent_verb[['verb']]
-        tqdm.pandas()
-
-        self.all_verbs_df['lemma_verb'] = self.all_verbs_df.verb.progress_apply(
-            get_lemma
-        )
-        self.all_verbs_df.to_csv(
-            self.lemmatized_verb_file, index=False, header=True)
-
-        all_verbs_df_dropped_dupl = self.all_verbs_df.drop_duplicates()
-        verbs_lemma_dict = {
-            row.verb: row.lemma_verb for row_ind, row in
-            all_verbs_df_dropped_dupl.iterrows()
-        }
-        json.dump(verbs_lemma_dict,
-                  open(self.lemmatized_verb_dict_file, 'w'))
-        return
 
     def create_all_similar_lists(self):
         self.create_similar_lists(split_type='train')

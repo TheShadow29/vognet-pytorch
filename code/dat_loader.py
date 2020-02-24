@@ -70,15 +70,17 @@ class AnetEntDataset(Dataset):
         Define the arguments to be used from the cfg
         """
         self.use_gt_prop = self.cfg.ds.use_gt_prop
-        # self.vis_attn = False
 
-        # if not self.use_gt_prop:
         # NOTE: These are changed at extended_config/post_proc_config
-        self.proposal_h5 = Path(self.cfg.ds.proposal_h5)
-        self.feature_root = Path(self.cfg.ds.feature_root)
-        # else:
-        # self.proposal_h5 = Path(self.cfg.ds.proposal_gt10_h5)
-        # self.feature_root = Path(self.cfg.ds.feature_gt10_root)
+        dct = self.cfg.ds[f'{self.cfg.ds.exp_setting}']
+        self.proposal_h5 = Path(dct['proposal_h5'])
+        self.feature_root = Path(dct['feature_root'])
+
+        # Max proposals to be considered
+        # By default it is 10 * 100
+        self.num_frms = self.cfg.ds.num_sampled_frm
+        self.num_prop_per_frm = dct['num_prop_per_frm']
+        self.num_props = self.num_prop_per_frm * self.num_frms
 
         # Assert h5 file to read from exists
         assert self.proposal_h5.exists()
@@ -94,19 +96,6 @@ class AnetEntDataset(Dataset):
         self.prop_thresh = self.cfg.misc.prop_thresh
         self.exclude_bgd_det = self.cfg.misc.exclude_bgd_det
 
-        # Max proposals to be considered
-        # By default it is 10 * 100
-        self.num_sampled_frm = self.cfg.misc.num_sampled_frm
-        self.num_prop_per_frm = self.cfg.misc.num_prop_per_frm
-
-        self.max_proposals = (self.num_sampled_frm *
-                              self.num_prop_per_frm)
-
-        self.max_proposal = self.max_proposals
-        # Max gt box to consider
-        # should consider all, set high
-        self.max_gt_box = self.cfg.misc.max_gt_box
-
         # Assert raw caption file (from activity net captions) exists
         self.raw_caption_file = Path(self.cfg.ds.anet_cap_file)
         assert self.raw_caption_file.exists()
@@ -119,17 +108,16 @@ class AnetEntDataset(Dataset):
         self.dic_anet_file = Path(self.cfg.ds.dic_anet_file)
         assert self.dic_anet_file.exists()
 
+        # Max gt box to consider
+        # should consider all, set high
+        self.max_gt_box = self.cfg.ds.max_gt_box
+
         # temporal attention size
-        self.t_attn_size = self.cfg.misc.t_attn_size
+        self.t_attn_size = self.cfg.ds.t_attn_size
 
         # Sequence length
         self.seq_length = self.cfg.misc.seq_length
         self.seq_per_img = self.cfg.misc.seq_per_img
-
-        # self.att_feat_size = self.cfg.mdl.att_feat_size
-        self.num_prop_per_frm = self.cfg.misc.num_prop_per_frm
-        self.num_frms = self.cfg.misc.num_sampled_frm
-        self.num_props = self.num_prop_per_frm * self.num_frms
 
     def load_annotations(self):
         """

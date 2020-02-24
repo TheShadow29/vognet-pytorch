@@ -410,7 +410,7 @@ class AnetVis(BaseVis):
                     req_cls_pats, req_cls_pats_mask)
                 out_dict['process_idx2'] = srl_idx
                 out_dict['process_clss'] = gvd_info['process_clss']
-
+                out_dict['process_bnd_box'] = gvd_info['process_bnd_box']
                 if len(
                         set(
                             out_dict['req_args']

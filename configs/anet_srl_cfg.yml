@@ -1,0 +1,20 @@
+ds_name: "anet"
+ds:
+  # where to find the rgb+flow data
+  seg_feature_root: "data/anet/rgb_motion_1d"
+  # choose one setting
+  exp_setting: "gt5" #or "p100"
+  gt5:
+    # bounding boxes from FasterRCNN
+    proposal_h5: "data/anet/anet_detection_vg_fc6_feat_gt5_rois.h5"
+    # extracted features from FasterRCNN
+    feature_root: "data/anet/fc6_feat_5rois"
+    # number of proposals considered per frame
+    num_prop_per_frm: 5
+  p100:
+    proposal_h5: "data/anet/anet_detection_vg_fc6_feat_100rois.h5"
+    feature_root: "data/anet/fc6_feat_100rois"
+    num_prop_per_frm: 100
+  num_sampled_frm: 10
+  max_gt_box: 100
+  t_attn_size: 480
