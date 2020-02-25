@@ -5,11 +5,17 @@ ds:
   anet_ent_split_file: "data/anet_srl_scratch/dic_anet.json"
   anet_ent_annot_file: "data/anet_srl_scratch/cap_anet_trainval.json"
   orig_anet_ent_clss: "data/anet_srl_scratch/anet_entities_cleaned_class_thresh50_trainval.json"
-  preproc_anet_ent_clss: "data/anet_srl_scratch/anet_entities_prepocessed_clss_trainval.json"
+  preproc_anet_ent_clss: "data/anet_srl_scratch/anet_ent_cls_bbox_trainval.json"
   # After adding semantic roles, these are generated inside the cache dir
   srl_caps: "SRL_Anet_cap_annots.csv"
   srl_bert: "srl_bert_preds.pkl"
+  # Resized width, height
+  resized_width: 720
+  resized_height: 405
   # Feature files
+  vid_hw_map: "data/anet/vid_hw_dict.json"
+  proposal_h5: "data/anet/anet_detection_vg_fc6_feat_100rois.h5"
+  proposal_h5_resized: "data/anet/anet_detection_vg_fc6_feat_100rois_resized.h5"
   seg_feature_root: "data/anet/rgb_motion_1d"
   feature_root: "data/anet/fc6_feat_100rois"
   # verbs and arguments to include/exclude
@@ -29,5 +35,9 @@ ds:
   val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
   # None
   none_word: "<none>"
+  # GT5
+  ngt_prop: 5
+  feature_gt5_root: "data/anet/fc6_feat_5rois"
+  proposal_gt5_h5: "data/anet/anet_detection_vg_fc6_feat_gt5_rois.h5"
 misc:
   cache_dir: "cache_dir"

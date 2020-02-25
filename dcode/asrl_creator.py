@@ -337,11 +337,11 @@ class AnetVis(BaseVis):
         assert srl_bert_file.exists() and srl_bert_file.suffix == '.pkl'
         self.srl_bert = pickle.load(open(srl_bert_file, 'rb'))
 
-        self.trn_anet_gvd_ent_orig_file = self.tdir / \
-            Path(self.cfg.ds.orig_anet_ent_clss)
-        assert self.trn_anet_gvd_ent_orig_file.exists()
+        self.trn_anet_ent_processed_file = self.tdir / \
+            Path(self.cfg.ds.preproc_anet_ent_clss)
+        assert self.trn_anet_ent_processed_file.exists()
         self.trn_anet_gvd_ent_orig_data = json.load(
-            open(self.trn_anet_gvd_ent_orig_file))
+            open(self.trn_anet_ent_processed_file))
 
         self.verb_lemma_dict_file = self.tdir / \
             Path(self.cfg.ds.verb_lemma_dict_file)
