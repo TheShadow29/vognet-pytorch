@@ -7,7 +7,7 @@ from torch.utils.data.distributed import DistributedSampler
 import torch
 from torch.nn import functional as F
 from pathlib import Path
-from _init_stuff import Fpath, Arr, ForkedPdb
+from _init_stuff import Fpath, Arr, yaml
 from yacs.config import CfgNode as CN
 import pandas as pd
 import h5py
@@ -51,7 +51,7 @@ class AnetEntDataset(Dataset):
         self.set_args()
         self.load_annotations()
 
-        self.create_glove_stuff()
+        # self.create_glove_stuff()
 
         h5_proposal_file = h5py.File(
             self.proposal_h5, 'r', driver='core')
@@ -69,7 +69,7 @@ class AnetEntDataset(Dataset):
         """
         Define the arguments to be used from the cfg
         """
-        self.use_gt_prop = self.cfg.ds.use_gt_prop
+        # self.use_gt_prop = self.cfg.ds.use_gt_prop
 
         # NOTE: These are changed at extended_config/post_proc_config
         dct = self.cfg.ds[f'{self.cfg.ds.exp_setting}']
@@ -80,7 +80,7 @@ class AnetEntDataset(Dataset):
         # By default it is 10 * 100
         self.num_frms = self.cfg.ds.num_sampled_frm
         self.num_prop_per_frm = dct['num_prop_per_frm']
-        self.num_props = self.num_prop_per_frm * self.num_frms
+        self.max_proposals = self.num_prop_per_frm * self.num_frms
 
         # Assert h5 file to read from exists
         assert self.proposal_h5.exists()
@@ -105,7 +105,7 @@ class AnetEntDataset(Dataset):
         assert self.anet_ent_annot_file.exists()
 
         # Assert word vocab files exist
-        self.dic_anet_file = Path(self.cfg.ds.dic_anet_file)
+        self.dic_anet_file = Path(self.cfg.ds.anet_ent_split_file)
         assert self.dic_anet_file.exists()
 
         # Max gt box to consider
@@ -116,8 +116,7 @@ class AnetEntDataset(Dataset):
         self.t_attn_size = self.cfg.ds.t_attn_size
 
         # Sequence length
-        self.seq_length = self.cfg.misc.seq_length
-        self.seq_per_img = self.cfg.misc.seq_per_img
+        self.seq_length = self.cfg.ds.max_seq_length
 
     def load_annotations(self):
         """
@@ -215,7 +214,7 @@ class AnetEntDataset(Dataset):
             region_feature.shape[2]
         ).copy()
         assert(num_proposals == region_feature.shape[0])
-        if self.cfg.ds.add_prop_to_region:
+        if self.cfg.misc.add_prop_to_region:
             region_feature = np.concatenate(
                 [region_feature, props[:num_proposals, :5]],
                 axis=1
@@ -316,6 +315,10 @@ class AnetEntDataset(Dataset):
         return seg_feats_frms, seg_feats_frms_glob
 
     def simple_item_getter(self, idx: int):
+        """
+        Basically, this returns stuff for the
+        vid_seg_id obtained from the idx
+        """
         row = self.annots.iloc[idx]
 
         vid_id = row['vid_id']
@@ -324,7 +327,7 @@ class AnetEntDataset(Dataset):
         ix = row['Index']
 
         # num_segs = self.annots[self.annots.vid_id == vid_id].seg_id.max()
-        num_segs = row['num_segs']
+        # num_segs = row['num_segs']
 
         # Get the padded proposals, proposal masks and the number of proposals
         padded_props, pad_pnt_mask, num_props = self.get_props(ix)
@@ -339,6 +342,7 @@ class AnetEntDataset(Dataset):
         # not accurate, with minor misalignments
         # Get the time stamp information for each segment
         timestamps = self.raw_caption[vid_id]['timestamps'][int(seg_id)]
+
         # Get the durations for each time stamp
         dur = self.raw_caption[vid_id]['duration']
 
@@ -361,8 +365,10 @@ class AnetEntDataset(Dataset):
         seg_feature[:min(self.t_attn_size, num_frm)
                     ] = seg_feature_raw[:self.t_attn_size]
 
-        seg_feature_for_frms, seg_feature_for_frms_glob = self.get_seg_feat_for_frms(
-            seg_feature_raw, timestamps, dur, idx)
+        seg_feature_for_frms, seg_feature_for_frms_glob = (
+            self.get_seg_feat_for_frms(
+                seg_feature_raw, timestamps, dur, idx)
+        )
         # get gt annotations
         # Get the act ent annotations
         # captions = [self.anet_ent_captions[vid_id]['segments'][seg_id]]
@@ -370,13 +376,13 @@ class AnetEntDataset(Dataset):
 
         # gt_annot_dict = self.get_gt_annots(captions, idx)
 
-        pad_gt_bboxs = gt_annot_dict['padded_gt_box']
-        num_box = gt_annot_dict['num_box']
+        # # pad_gt_bboxs = gt_annot_dict['padded_gt_box']
+        # # num_box = gt_annot_dict['num_box']
 
-        frm_mask = self.get_frm_mask(
-            padded_props[:num_props, 4], pad_gt_bboxs[:num_box, 4])
-        pad_frm_mask = np.ones((self.max_proposals, self.max_gt_box))
-        pad_frm_mask[:num_props, :num_box] = frm_mask
+        # frm_mask = self.get_frm_mask(
+        #     padded_props[:num_props, 4], pad_gt_bboxs[:num_box, 4])
+        # pad_frm_mask = np.ones((self.max_proposals, self.max_gt_box))
+        # pad_frm_mask[:num_props, :num_box] = frm_mask
 
         # 0 - number of captions
         # 1 - number of proposals
@@ -385,21 +391,21 @@ class AnetEntDataset(Dataset):
         # 4 - number of segments
         # 5 - start time stamp
         # 6 - end time stamp
-        num = torch.FloatTensor(
-            [ncap, num_props, num_box, int(seg_id),
-             # max(self.num_seg_per_vid[vid_id]
-             # )+1,
-             num_segs,
-             timestamps[0]*1./dur,
-             timestamps[1]*1./dur]
-        )  # 3 + 4 (seg_id, num_of_seg_in_video, seg_start_time, seg_end_time)
+        # num = torch.FloatTensor(
+        #     [ncap, num_props, num_box, int(seg_id),
+        #      # max(self.num_seg_per_vid[vid_id]
+        #      # )+1,
+        #      num_segs,
+        #      timestamps[0]*1./dur,
+        #      timestamps[1]*1./dur]
+        # )  # 3 + 4 (seg_id, num_of_seg_in_video, seg_start_time, seg_end_time)
 
         pad_pnt_mask = torch.tensor(pad_pnt_mask).long()
-        pnt_mask2 = torch.cat(
-            (pad_pnt_mask.new(1).fill_(0),
-             pad_pnt_mask),
-            dim=0
-        )
+        # pnt_mask2 = torch.cat(
+        #     (pad_pnt_mask.new(1).fill_(0),
+        #      pad_pnt_mask),
+        #     dim=0
+        # )
 
         pad_region_feature = np.zeros(
             (self.max_proposals, region_feature.shape[1]))
@@ -411,24 +417,31 @@ class AnetEntDataset(Dataset):
                 seg_feature_for_frms).float(),
             'seg_feature_for_frms_glob': torch.from_numpy(
                 seg_feature_for_frms_glob).float(),
-            'inp_seq': torch.from_numpy(gt_annot_dict['inp_seq']).long(),
-            'gt_seq': torch.from_numpy(gt_annot_dict['gt_seq']).long(),
-            'num': num,
-            'seq_len': torch.tensor(gt_annot_dict['seq_len']).long(),
+            # 'num': num,
+            # 'seq_len': torch.tensor(gt_annot_dict['seq_len']).long(),
             'num_props': torch.tensor(num_props).long(),
-            'num_box': torch.tensor(num_box).long(),
+            # 'num_box': torch.tensor(num_box).long(),
             'pad_proposals': torch.tensor(padded_props).float(),
-            'pad_gt_bboxs': torch.tensor(pad_gt_bboxs).float(),
-            'pad_gt_box_mask': torch.tensor(
-                gt_annot_dict['padded_gt_box_mask']).byte(),
+            # 'pad_gt_bboxs': torch.tensor(pad_gt_bboxs).float(),
+            # 'pad_gt_box_mask': torch.tensor(
+            # gt_annot_dict['padded_gt_box_mask']).byte(),
             'seg_id': torch.tensor(int(seg_id)).long(),
             'idx': torch.tensor(idx).long(),
             'ann_idx': torch.tensor(idx).long(),
             'pad_region_feature': torch.tensor(pad_region_feature).float(),
-            'pad_frm_mask': torch.tensor(pad_frm_mask).byte(),
+            # 'pad_frm_mask': torch.tensor(pad_frm_mask).byte(),
             'sample_idx': torch.tensor(sample_idx).long(),
             'pad_pnt_mask': pad_pnt_mask.byte(),
-            'pad_pnt_mask2': pnt_mask2.byte(),
+            # 'pad_pnt_mask2': pnt_mask2.byte(),
         }
 
         return out_dict
+
+
+if __name__ == '__main__':
+    cfg = CN(yaml.safe_load(open('./configs/anet_srl_cfg.yml')))
+
+    anet_ent_ds = AnetEntDataset(
+        cfg=cfg, ann_file=cfg.ds.ann_file.train,
+        split_type='train'
+    )

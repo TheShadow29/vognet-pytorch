@@ -34,10 +34,8 @@ yaml.SafeLoader.add_implicit_resolver(
     list(u'-+0123456789.'))
 
 # _SCRIPTPATH_ =
-sys.path.insert(0, './tools/densevid_eval')
-sys.path.insert(0, './tools/densevid_eval/coco-caption')
-sys.path.insert(0, 'tools/anet_entities/scripts')
 sys.path.append('./code/')
+sys.path.append('./utils')
 
 
 class ForkedPdb(pdb.Pdb):

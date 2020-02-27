@@ -337,11 +337,11 @@ class AnetVis(BaseVis):
         assert srl_bert_file.exists() and srl_bert_file.suffix == '.pkl'
         self.srl_bert = pickle.load(open(srl_bert_file, 'rb'))
 
-        self.trn_anet_ent_processed_file = self.tdir / \
-            Path(self.cfg.ds.preproc_anet_ent_clss)
-        assert self.trn_anet_ent_processed_file.exists()
+        self.trn_anet_ent_orig_file = self.tdir / \
+            Path(self.cfg.ds.orig_anet_ent_clss)
+        assert self.trn_anet_ent_orig_file.exists()
         self.trn_anet_gvd_ent_orig_data = json.load(
-            open(self.trn_anet_ent_processed_file))
+            open(self.trn_anet_ent_orig_file))
 
         self.verb_lemma_dict_file = self.tdir / \
             Path(self.cfg.ds.verb_lemma_dict_file)
@@ -410,7 +410,7 @@ class AnetVis(BaseVis):
                     req_cls_pats, req_cls_pats_mask)
                 out_dict['process_idx2'] = srl_idx
                 out_dict['process_clss'] = gvd_info['process_clss']
-                out_dict['process_bnd_box'] = gvd_info['process_bnd_box']
+
                 if len(
                         set(
                             out_dict['req_args']
@@ -489,9 +489,31 @@ class AnetVis(BaseVis):
         self.trn_vid_seg_list = trn_vid_seg_list
         self.trn_ent_df = pd.DataFrame(self.trn_vid_seg_list)
 
+    def append_bbox_asrl(self):
+        """
+        Add the `resized` bounding boxes
+        to asrl for easier data processing
+        """
+        self.anet_ent_preproc_file = Path(self.cfg.ds.preproc_anet_ent_clss)
+        assert self.anet_ent_preproc_file.exists()
+        self.anet_ent_preproc_data = json.load(
+            open(self.anet_ent_preproc_file))
+        box_info = []
+        frm_info = []
+        for row_ind, row in tqdm(self.trn_ent_verb_df.iterrows(),
+                                 total=len(self.trn_ent_verb_df)):
+            vid, seg = row['vid_seg'].split('_segment_')
+            seg = str(int(seg))
+            info_dict = self.anet_ent_preproc_data[vid]['segments'][seg]
+            box_info.append(info_dict['bbox'])
+            frm_info.append(info_dict['frm_idx'])
+        self.trn_ent_verb_df['gt_bboxes'] = box_info
+        self.trn_ent_verb_df['gt_frms'] = frm_info
+
 
 if __name__ == '__main__':
     cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
     anet_vis = AnetVis(cfg)
     anet_vis.load_srl_annots()
+    anet_vis.append_bbox_asrl()
     anet_vis.save_trn_ent_file()

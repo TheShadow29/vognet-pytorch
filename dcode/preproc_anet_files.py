@@ -32,11 +32,11 @@ class AnetEntFiles:
         self.open_req_files()
 
     def open_req_files(self):
-        # self.trn_anet_ent_orig_file = Path(self.cfg.ds.orig_anet_ent_clss)
-        self.trn_anet_ent_orig_file = Path(self.cfg.ds.anet_ent_annot_file)
-        assert self.trn_anet_ent_orig_file.exists()
-        self.trn_anet_ent_orig_data = json.load(
-            open(self.trn_anet_ent_orig_file))
+
+        self.trn_anet_ent_file = Path(self.cfg.ds.anet_ent_annot_file)
+        assert self.trn_anet_ent_file.exists()
+        self.trn_anet_ent_data = json.load(
+            open(self.trn_anet_ent_file))
 
         self.trn_anet_ent_preproc_file = Path(
             self.cfg.ds.preproc_anet_ent_clss)
@@ -58,8 +58,8 @@ class AnetEntFiles:
         # out_ann = self.get_vidseg_hw_map(
         # ann=self.trn_anet_ent_orig_data['annotations'])
         out_ann = self.get_vidseg_hw_map(
-            ann=self.trn_anet_ent_orig_data)
-        # out_ann = self.add_pronouns(out_ann)
+            ann=self.trn_anet_ent_data)
+
         json.dump(out_ann, open(self.trn_anet_ent_preproc_file, 'w'))
 
     def add_pronouns(self, ann):

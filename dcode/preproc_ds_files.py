@@ -104,9 +104,7 @@ class AnetCSV:
     def post_proc_srl(self, train_file, val_file, test_file=None):
         """
         Add the Index to each csv file
-        This helps later in contrastive sampling.
-        Honestly, I forgot why I had to do it in such a roundabout way.
-        Surely, there was a reason. May change later if a shortcut is found
+        This is required to get the correct proposals from h5 file
         """
         def get_row_id(vid_seg, ann_df):
             vid_dict_row = ann_df[ann_df.id ==

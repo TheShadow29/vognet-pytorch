@@ -89,7 +89,7 @@ def create_random_list(cfg, srl_annots, ann_row_idx):
     return inds_to_use, ds4_msk
 
 
-def create_similar_list_old(cfg, arg_dicts, srl_annots, ann_row_idx):
+def create_similar_list_new(cfg, arg_dicts, srl_annots, ann_row_idx):
     """
     Does it for one row. Assumes annotations
     exists and can be retrieved via `self`.
@@ -469,7 +469,6 @@ if __name__ == '__main__':
         # cfg.yolo2 = 0
 
         anet_ds = AnetDSCreator(cfg)
-        # anet_ds.lemmatize_verbs()
         # anet_ds.create_dicts_srl()
         anet_ds.create_similar_lists(split_type=split_type)
 

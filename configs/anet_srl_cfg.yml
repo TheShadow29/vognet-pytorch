@@ -12,9 +12,22 @@ ds:
     # number of proposals considered per frame
     num_prop_per_frm: 5
   p100:
-    proposal_h5: "data/anet/anet_detection_vg_fc6_feat_100rois.h5"
+    proposal_h5: "data/anet/anet_detection_vg_fc6_feat_100rois_resized.h5"
     feature_root: "data/anet/fc6_feat_100rois"
     num_prop_per_frm: 100
   num_sampled_frm: 10
   max_gt_box: 100
   t_attn_size: 480
+  max_seq_length: 20
+  anet_cap_file: "data/anet_srl_scratch/anet_captions_all_splits.json"
+  anet_ent_annot_file: "data/anet_srl_scratch/anet_ent_cls_bbox_trainval.json"
+  anet_ent_split_file: "data/anet_srl_scratch/dic_anet.json"
+  ann_file:
+    train: "data/anet_srl_scratch/csv_dir/train_postproc.csv"
+    valid: "data/anet_srl_scratch/csv_dir/val_postproc.csv"
+
+misc:
+  prop_thresh: 0.
+  exclude_bgd_det: False
+  add_prop_to_region: False
+  ctx_for_seg_feats: 0
