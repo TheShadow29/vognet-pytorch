@@ -37,7 +37,8 @@ ds:
   none_word: "<none>"
   # GT5
   ngt_prop: 5
+  num_frms: 10
   feature_gt5_root: "data/anet/fc6_feat_5rois"
-  proposal_gt5_h5: "data/anet/anet_detection_vg_fc6_feat_gt5_rois.h5"
+  proposal_gt5_h5_resized: "data/anet/anet_detection_vg_fc6_feat_gt5_rois.h5"
 misc:
   cache_dir: "cache_dir"
