@@ -17,6 +17,7 @@ from utils.box_utils import box_iou
 import copy
 import torch
 from collections import OrderedDict
+import fire
 
 
 class AnetEntFiles:
@@ -61,6 +62,7 @@ class AnetEntFiles:
             ann=self.trn_anet_ent_data)
 
         json.dump(out_ann, open(self.trn_anet_ent_preproc_file, 'w'))
+        self.resize_props()
 
     def add_pronouns(self, ann):
         def upd(segv):
@@ -423,9 +425,21 @@ class AnetEntFiles:
         return
 
 
-if __name__ == '__main__':
+def main(task: str):
     cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
     anet_pre = AnetEntFiles(cfg)
+    if 'resize_boxes_ae' in task:
+        anet_pre.run()
+    if 'choose_gt5' in task:
+        anet_pre.choose_gt5(save=True)
+    if 'compute_recall' in task:
+        anet_pre.compute_recall()
+
+
+if __name__ == '__main__':
+    fire.Fire(main)
+    # cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
+    # anet_pre = AnetEntFiles(cfg)
     # anet_pre.compute_recall()
     # anet_pre.choose_gt5(save=True)
     # anet_pre.add_pronouns()

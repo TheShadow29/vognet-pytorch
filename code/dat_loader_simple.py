@@ -23,6 +23,7 @@ import ast
 import pickle
 from ds4_creator import create_similar_list, create_random_list
 from mdl_srl_utils import combine_first_ax
+from trn_utils import get_dataloader
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -32,6 +33,7 @@ class AnetEntDataset(Dataset):
     Dataset class adopted from
     https://github.com/facebookresearch/grounded-video-description
     /blob/master/misc/dataloader_anet.py#L27
+    This is basically AE loader.
     """
 
     def __init__(self, cfg: CN, ann_file: Fpath, split_type: str = 'train',
@@ -438,10 +440,1147 @@ class AnetEntDataset(Dataset):
         return out_dict
 
 
+class AnetVerbDataset(AnetEntDataset):
+    def fix_via_ast(self, df):
+        for k in df.columns:
+            first_word = df.iloc[0][k]
+            if isinstance(first_word, str) and (first_word[0] in '[{'):
+                df[k] = df[k].apply(
+                    lambda x: ast.literal_eval(x))
+        return df
+
+    # def after_init(self):
+    #     if self.split_type == 'train':
+    #         self.srl_annots = pd.read_csv(self.cfg.ds.trn_verb_ent_file)
+    #     elif self.split_type == 'valid':
+    #         self.srl_annots = pd.read_csv(self.cfg.ds.val_verb_ent_file)
+
+    #     elif self.split_type == 'test':
+    #         self.srl_annots = pd.read_csv(self.cfg.ds.val_verb_ent_file)
+
+    #     else:
+    #         raise NotImplementedError
+
+    #     assert hasattr(self, 'srl_annots')
+    #     self.srl_annots = self.fix_via_ast(self.srl_annots)
+
+    #     with open(self.cfg.ds.arg_vocab_file, 'rb') as f:
+    #         self.arg_vocab = pickle.load(f)
+
+    #     self.srl_arg_len = self.cfg.misc.srl_arg_length
+    #     self.box_per_srl_arg = self.cfg.misc.box_per_srl_arg
+
+    #     if self.cfg.ds.proc_type == 'one_verb':
+    #         self.itemgetter = getattr(self, 'verb_item_getter')
+    #         self.max_srl_in_sent = 1
+    #     elif self.cfg.ds.proc_type == 'one_sent':
+    #         self.itemgetter = getattr(self, 'sent_item_getter')
+    #         self.srl_annots = list(self.srl_annots.groupby(by=['ann_ind']))
+    #         self.max_srl_in_sent = self.cfg.misc.max_srl_in_sent
+
+    def __len__(self):
+        # if self.split_type == 'train':
+        # return 50
+        return len(self.srl_annots)
+        # return 50
+
+    # def get_det_word_simple(self, caption, srl_px_to_ix_map, srl_row):
+
+    #     indicator = []
+    #     proc_idxs2 = srl_row.process_idx2
+
+    #     proc_clss2 = srl_row.process_clss
+    #     # category class, binary class, fine-grain class.
+    #     indicator.append([(0, 0, 0)]*len(caption))
+    #     for pind, pidx in enumerate(proc_idxs2):
+    #         for pind2, pidx2 in enumerate(pidx):
+    #             if not isinstance(pidx2, list):  #
+    #                 pidxs3 = [pidx2]
+    #             else:
+    #                 pidxs3 = pidx2
+    #             for pidx3 in pidxs3:
+    #                 if pidx3 in srl_px_to_ix_map:
+    #                     px2 = srl_px_to_ix_map[pidx3]
+    #                     indicator[0][px2] = (
+    #                         self.comm.dtoi[proc_clss2[pind][pind2]], 0, 0)
+
+    #     return indicator
+
+    # def pad_words_with_vocab(self, out_list, vocab=None, pad_len=-1, defm=[1]):
+    #     if pad_len == -1:
+    #         return out_list
+    #     else:
+    #         curr_len = len(out_list)
+    #         if curr_len > pad_len:
+    #             return out_list[:pad_len]
+    #         else:
+    #             if vocab is not None and hasattr(vocab, 'itos'):
+    #                 assert vocab.itos[1] == '<pad>'
+    #             out_list += defm * (pad_len - curr_len)
+    #             return out_list
+
+    def pidx2list(self, pidx):
+        """
+        Converts process_idx2 to single list
+        """
+        lst = []
+        for p1 in pidx:
+            if not isinstance(p1, list):
+                p1 = [p1]
+            for p2 in p1:
+                if not isinstance(p2, list):
+                    p2 = [p2]
+                for p3 in p2:
+                    assert not isinstance(p3, list)
+                    lst.append(p3)
+        return lst
+
+    def get_srl_anns(self, srl_row, out=None):
+        """
+        To output dictionary of whatever srl needs
+        1. tags
+        2. args with st, end ixs
+        3. box ind matching
+        """
+        srl_row = copy.deepcopy(srl_row)
+
+        def word_to_int_vocab(words, voc, pad_len=-1):
+            """
+            A convenience function to convert words
+            into their indices given a vocab.
+            Using Anet Vocab only.
+            Optionally, pad answers as well
+            """
+            out_list = []
+            if hasattr(voc, 'stoi'):
+                vocs = voc.stoi
+            else:
+                vocs = voc
+            for w in words:
+                if w in vocs:
+                    out_list.append(int(vocs[w]))
+                else:
+                    if hasattr(voc, 'UNK'):
+                        unk_word = voc.UNK
+                    else:
+                        unk_word = 'UNK'
+                    out_list.append(int(vocs[unk_word]))
+            curr_len = len(out_list)
+            return self.pad_words_with_vocab(out_list,
+                                             voc, pad_len=pad_len), curr_len
+
+        vis_set = self.cfg.ds.includ_srl_args
+        # want to get the arguments and the word indices
+        srl_args, srl_words_inds = [list(t) for t in zip(*srl_row.req_pat_ix)]
+        srl_args_visual_msk = self.pad_words_with_vocab(
+            [s in vis_set for s in srl_args],
+            pad_len=self.srl_arg_len, defm=[0])
+        # get the words from their indices
+        srl_arg_words = [[srl_row.words[ix]
+                          for ix in y] for y in srl_words_inds]
+
+        # Tags are converted via tag vocab
+        # seq_len, len
+        tag_seq = [srl_row.tags[ix] for y in srl_words_inds for ix in y]
+        tag_word_ind, _ = word_to_int_vocab(
+            # srl_row.tags,
+            tag_seq,
+            self.arg_vocab['arg_tag_vocab'],
+            pad_len=self.seq_length
+        )
+
+        # Argument Names (ARG0/V/) are  converted to indices
+        # Max num of arguments is kept to be self.srl_arg_len
+
+        assert 'V' in srl_args
+        verb_ind_in_srl = srl_args.index('V')
+        if not verb_ind_in_srl <= self.srl_arg_len - 1:
+            verb_ind_in_srl = 0
+
+        srl_arg_inds, srl_arg_len = word_to_int_vocab(
+            srl_args, self.arg_vocab['arg_vocab'],
+            pad_len=self.srl_arg_len
+        )
+        if srl_arg_len > self.srl_arg_len:
+            srl_arg_len = self.srl_arg_len
+        # defm: is the default matrix to be used
+        defm = tuple([[1] * self.seq_length, 0])
+        # convert the words to their indices using the vocab
+        # for every argument
+        srl_arg_words_ind_length = self.pad_words_with_vocab(
+            [word_to_int_vocab(
+                srl_arg_w, self.comm.wtoi, pad_len=self.seq_length) for
+                srl_arg_w in srl_arg_words],
+            pad_len=self.srl_arg_len, defm=[defm])
+
+        # Unzip to get the word indices and their lengths for
+        # each argument separately
+        srl_arg_words_ind, srl_arg_words_length = [
+            list(t) for t in zip(*srl_arg_words_ind_length)]
+
+        # This is used to convert
+        # [[ARG0: w1,w2], [ARG1: w5,..]] ->
+        # [w1,w2,w5]
+        # Basically, convert
+        # [0] 0,1 -> 0,1
+        # [1] 0,1 -> 40, 41
+        # and so on
+        # Finally, use this with index_select
+        srl_arg_word_list = [
+            torch.arange(0+st, 0+st+wlen)
+            for st, wlen in zip(
+                range(
+                    0,
+                    self.seq_length*self.srl_arg_len,
+                    self.seq_length), srl_arg_words_length)
+        ]
+
+        # Concat above list
+        srl_arg_words_list = torch.cat(srl_arg_word_list, dim=0).tolist()
+        # Create the mask to be used with index select
+        srl_arg_words_mask = self.pad_words_with_vocab(
+            srl_arg_words_list, pad_len=self.seq_length, defm=[-1]
+        )
+
+        # Get the start and end positions
+        # these are used to retrieve
+        # LSTM outputs of the sentence
+        # to the argument vectors
+        srl_arg_word_list_tmp = [
+            0] + torch.cumsum(
+                torch.tensor(srl_arg_words_length),
+                dim=0).tolist()
+        srl_arg_words_capture = [
+            (min(x, self.seq_length-1), min(y-1, self.seq_length-1))
+            if wlen > 0 else (0, 0)
+            for x, y, wlen in zip(
+                srl_arg_word_list_tmp[:-1],
+                srl_arg_word_list_tmp[1:],
+                srl_arg_words_length
+            )
+        ]
+
+        # This is used to retrieve in argument form from
+        # the sentence form
+        # Basically, [w1,w2,w5] -> [[ARG0: w1,w2], [ARG1: w5]]
+        # Restrict to max len because scatter is used later
+        srl_arg_words_map_inv = [
+            y_ix for y_ix, y in enumerate(
+                srl_words_inds[:self.srl_arg_len]) for ix in y]
+
+        # Also, pad it
+        srl_arg_words_map_inv = self.pad_words_with_vocab(
+            srl_arg_words_map_inv,
+            pad_len=self.seq_length,
+            defm=[0]
+        )
+
+        # The following creates a binary mask for the sequence_length
+        # [1] * seq_cnt for every ARG row
+        # This is applied to the scatter output
+        defm = [[0] * self.seq_length]
+        seq_cnt = sum(srl_arg_words_length)
+        srl_arg_words_binary_mask = self.pad_words_with_vocab(
+            [self.pad_words_with_vocab(
+                [1]*seq_cnt, pad_len=self.seq_length, defm=[0])
+             for srl_arg_w in srl_arg_words],
+            pad_len=self.srl_arg_len, defm=defm)
+
+        # Get the set of visual words
+        vis_idxs_set = set(self.pidx2list(srl_row.process_idx2))
+        # Create a map for getting which are the visual words
+        srl_arg_words_conc_ix = [ix for y in srl_words_inds for ix in y]
+        # Create the binary mask
+        srl_vis_words_binary_mask = self.pad_words_with_vocab(
+            [1 if srl_vw1 in vis_idxs_set else 0
+             for srl_vw1 in srl_arg_words_conc_ix],
+            pad_len=self.seq_length, defm=[0])
+
+        # The following are used to map the gt boxes
+        # The first is the srl argument, followed by an
+        # indicator wheather the box is valid or not
+        # third is if valid which boxes to look at
+        srl_args, srl_arg_box_indicator, srl_arg_box_inds = [
+            list(t) for t in zip(*srl_row.req_cls_pats_mask)
+        ]
+
+        # srl boxes, and their lengths are stored in a list
+        srl_boxes = []
+        srl_boxes_lens = []
+        for s1_ind, s1 in enumerate(srl_arg_box_inds):
+            mult = min(
+                len(s1),
+                self.box_per_srl_arg
+            ) if srl_arg_box_indicator[s1_ind] == 1 else 0
+
+            s11 = [x if x_ix < self.box_per_srl_arg else 0 for x_ix,
+                   x in enumerate(s1)]
+            srl_boxes.append(self.pad_words_with_vocab(
+                s11, pad_len=self.box_per_srl_arg, defm=[0]))
+            srl_boxes_lens.append(self.pad_words_with_vocab(
+                [1]*mult, pad_len=self.box_per_srl_arg, defm=[0]))
+
+        # They are then padded
+        srl_boxes = self.pad_words_with_vocab(
+            srl_boxes,
+            pad_len=self.srl_arg_len,
+            defm=[[0]*self.box_per_srl_arg]
+        )
+        srl_boxes_lens = self.pad_words_with_vocab(
+            srl_boxes_lens,
+            pad_len=self.srl_arg_len,
+            defm=[[0]*self.box_per_srl_arg]
+        )
+
+        # An indicator wheather the boxes are valid
+        srl_arg_boxes_indicator = self.pad_words_with_vocab(
+            srl_arg_box_indicator, pad_len=self.srl_arg_len, defm=[0])
+
+        # if not torch.all(torch.tensor(srl_boxes).long() < self.box_per_srl_arg):
+        #     import pdb
+        #     pdb.set_trace()
+        #     pass
+        out_dict = {
+            # Tags are indexed (B-V -> 4)
+            'srl_tag_word_ind': torch.tensor(tag_word_ind).long(),
+            # Tag word len available elsewhere, hence removed
+            # 'tag_word_len': torch.tensor(tag_word_len).long(),
+            # 1 if arg is in ARG1-2/LOC else 0
+            'srl_args_visual_msk': torch.tensor(srl_args_visual_msk).long(),
+            # ARGs are indexed (ARG0 -> 4, V -> 2)
+            'srl_arg_inds': torch.tensor(srl_arg_inds).long(),
+            # How many args are considered (ARG0, V,ARG1, ARGM), would be 4
+            'srl_arg_len': torch.tensor(srl_arg_len).long(),
+            # the above but in mask format
+            'srl_arg_inds_msk': torch.tensor(
+                [1] * srl_arg_len + [0]*(self.srl_arg_len - srl_arg_len)
+            ).long(),
+            # Where the verb is located, in prev eg, it would be 1
+            'verb_ind_in_srl': torch.tensor(verb_ind_in_srl).long(),
+            # num_srl_args x seq_len: for each srl_arg, what is the seq
+            # so ARG0: The woman -> [[1946, 4307, ...],...]
+            'srl_arg_words_ind': torch.tensor(srl_arg_words_ind).long(),
+            # The corresponding lengths of each num_srl
+            'srl_arg_words_length': torch.tensor(srl_arg_words_length).long(),
+            # num_srl_args x seq_len, 1s upto the seq_len of the whole
+            # srl_sent: This is used in scatter operation
+            'srl_arg_words_binary_mask': torch.tensor(
+                srl_arg_words_binary_mask).long(),
+            # Similar to previous, but 1s only at places
+            # which are visual words. Used for scatter + GVD
+            'srl_vis_words_binary_mask': torch.tensor(
+                srl_vis_words_binary_mask).long(),
+            # seq_len, but contains in the indices to be gathered
+            # from num_srl_args x seq_len -> num_srl_args*seq_len
+            # via index_select
+            'srl_arg_word_mask': torch.tensor(srl_arg_words_mask).long(),
+            # seq_len basically
+            'srl_arg_word_mask_len': torch.tensor(min(sum(
+                srl_arg_words_length), self.seq_length)).long(),
+            # containing start and end points of the words to be collected
+            'srl_arg_words_capture': torch.tensor(srl_arg_words_capture).long(),
+            # used scatter + GVD
+            'srl_arg_words_map_inv': torch.tensor(srl_arg_words_map_inv).long(),
+            # box indices in gt boxes
+            'srl_boxes': torch.tensor(srl_boxes).long(),
+            # mask on which of them to choose
+            'srl_boxes_lens': torch.tensor(srl_boxes_lens).long(),
+            'srl_arg_boxes_mask': torch.tensor(srl_arg_boxes_indicator).long()
+        }
+        return out_dict
+
+    def collate_dict_list(self, dict_list, pad_len=None):
+        out_dict = {}
+        keys = list(dict_list[0].keys())
+        num_dl = len(dict_list)
+        if pad_len is None:
+            pad_len = self.max_srl_in_sent
+        for k in keys:
+            dl_list = [dl[k] for dl in dict_list]
+            dl_list_pad = self.pad_words_with_vocab(
+                dl_list,
+                pad_len=pad_len, defm=[dl_list[0]])
+            out_dict[k] = torch.stack(dl_list_pad)
+        return out_dict, num_dl
+
+    def sent_item_getter(self, idx):
+        """
+        get vidseg at a time, multiple verbs
+        """
+
+        ann_ind, srl_rows = self.srl_annots[idx]
+        out = self.simple_item_getter(ann_ind)
+        out_dict_list = [self.get_srl_anns(srl_rows.iloc[ix], out)
+                         for ix in range(len(srl_rows))]
+        srl_row_indices = self.pad_words_with_vocab(
+            srl_rows.index.tolist(),
+            pad_len=self.max_srl_in_sent)
+        out_dict, num_verbs = self.collate_dict_list(out_dict_list)
+        out_dict['num_verbs'] = torch.tensor(num_verbs).long()
+        out_dict['ann_idx'] = torch.tensor(ann_ind).long()
+        out_dict['sent_idx'] = torch.tensor(idx).long()
+        out_dict['srl_verb_idxs'] = torch.tensor(srl_row_indices).long()
+        out.update(out_dict)
+        return out
+
+    def get_for_one_verb(self, srl_row, idx, out=None):
+        out_dict_list = [self.get_srl_anns(srl_row, out)]
+        out_dict, num_verbs = self.collate_dict_list(out_dict_list)
+        out_dict['num_verbs'] = torch.tensor(num_verbs).long()
+        out_dict['ann_idx'] = torch.tensor(srl_row.ann_ind).long()
+        out_dict['sent_idx'] = torch.tensor(idx).long()
+        out_dict['srl_verb_idxs'] = torch.tensor([idx]).long()
+        return out_dict
+
+    def verb_item_getter(self, idx):
+        """
+        get verb items, one at a time
+        """
+        srl_row = self.srl_annots.loc[idx]
+        out = self.simple_item_getter(srl_row.ann_ind)
+        out_dict = self.get_for_one_verb(srl_row, idx, out)
+        # out_dict['srl_verb_idxs'] = torch.tensor(srl_row_indices).long()
+        out.update(out_dict)
+        return out
+
+
+class AVDS4:
+    def __len__(self):
+        # if self.split_type == 'train':
+        # return 50
+        return len(self.srl_annots)
+        # return 50
+
+    def after_init(self):
+        if self.split_type == 'train':
+            srl_annot_file = self.cfg.ds.trn_ds4_inds
+            arg_dict_file = self.cfg.ds.trn_ds4_dicts
+        elif self.split_type == 'valid' or self.split_type == 'test':
+            srl_annot_file = self.cfg.ds.val_ds4_inds
+            arg_dict_file = self.cfg.ds.val_ds4_dicts
+        else:
+            raise NotImplementedError
+
+        self.srl_annots = pd.read_csv(srl_annot_file)
+        assert hasattr(self, 'srl_annots')
+
+        self.srl_annots = self.fix_via_ast(self.srl_annots)
+        # self.srl_annots = self.srl_annots.loc[[762, 13005]]
+        # self.srl_annots = self.srl_annots.loc[[13098, 460]]
+        # self.srl_annots = self.srl_annots.loc[[959, 14646]]
+        # THIS MAY BE A BUG
+        # import pdb
+        # pdb.set_trace()
+        # self.srl_annots = self.srl_annots[self.srl_annots.ds4_msk != -1]
+        with open(arg_dict_file) as f:
+            self.arg_dicts = json.load(f)
+
+        assert self.cfg.ds.proc_type == 'one_verb'
+        self.max_srl_in_sent = 1
+
+        if self.split_type == 'train':
+            self.ds4_sample = self.cfg.ds.trn_ds4_sample
+            assert self.ds4_sample in set(['ds4', 'random', 'ds4_random'])
+        elif self.split_type == 'valid' or self.split_type == 'test':
+            self.ds4_sample = self.cfg.ds.val_ds4_sample
+            assert self.ds4_sample in set(['ds4', 'random'])
+        else:
+            raise NotImplementedError
+
+        if self.ds4_sample == 'random':
+            self.more_idx_collector = getattr(self, 'get_random_more_idx')
+        elif self.ds4_sample == 'ds4':
+            self.more_idx_collector = getattr(self, 'get_more_idxs')
+        elif self.ds4_sample == 'ds4_random':
+            self.more_idx_collector = getattr(
+                self, 'get_ds4_and_random_more_idx')
+        else:
+            raise NotImplementedError
+
+        if self.split_type == 'train':
+            ds4_sigm_num_inp = self.cfg.misc.trn_ds4_sigm_num_inp
+        elif self.split_type in set(['valid', 'test']):
+            ds4_sigm_num_inp = self.cfg.misc.val_ds4_sigm_num_inp
+        else:
+            raise NotImplementedError
+        if self.cfg.ds.ds4_type == 'sigmoid':
+            self.ds4_inp_len = ds4_sigm_num_inp
+            self.itemcollector = getattr(self, 'verb_item_getter_ds4_sigmoid')
+        elif self.cfg.ds.ds4_type == 'sigmoid_single_q':
+            self.ds4_inp_len = ds4_sigm_num_inp
+            self.itemcollector = getattr(
+                self, 'verb_item_getter_ds4_sigmoid_single'
+            )
+        elif self.cfg.ds.ds4_type == 'single':
+            self.ds4_inp_len = 1
+            self.itemcollector = getattr(
+                self, 'verb_item_getter_ds4_sigmoid_single'
+            )
+
+            # self.itemcollector = getattr(self, 'verb_item_getter_ds4_sigmoid')
+        else:
+            raise NotImplementedError
+
+        if self.cfg.ds.ds4_screen == 'screen_spatial':
+            self.itemgetter = getattr(
+                self, 'verb_item_getter_ds4_screen_spatial')
+            self.append_everywhere = False
+        elif self.cfg.ds.ds4_screen == 'screen_temporal':
+            self.itemgetter = getattr(
+                self, 'verb_item_getter_ds4_screen_temporal')
+            self.append_everywhere = False
+        elif self.cfg.ds.ds4_screen == 'screen_sep':
+            self.itemgetter = getattr(
+                self, 'verb_item_getter_screen_sep')
+            self.append_everywhere = True
+            # self.append_everywhere = False
+        else:
+            raise NotImplementedError
+
+        # Whether to shuffle among the four screens
+        self.ds4_shuffle = self.cfg.ds.shuffle_ds4
+
+        with open(self.cfg.ds.arg_vocab_file, 'rb') as f:
+            self.arg_vocab = pickle.load(f)
+
+        self.srl_arg_len = self.cfg.misc.srl_arg_length
+        self.box_per_srl_arg = self.cfg.misc.box_per_srl_arg
+
+    def get_ds4_and_random_more_idx(self, idx):
+        """
+        Either choose at random or
+        choose ds4
+        """
+        if np.random.random() < 0.5:
+            return self.get_random_more_idx(idx)
+        else:
+            return self.get_more_idxs(idx)
+
+    def get_random_more_idx(self, idx):
+        """
+        Returns set of random ds4 idxs
+        """
+        if self.split_type == 'train':
+            more_idxs, _ = create_random_list(self.cfg,
+                                              self.srl_annots, idx)
+        elif self.split_type == 'valid' or self.split_type == 'test':
+            # obtain predefined idxs
+            more_idxs = self.srl_annots.RandDS4_Inds.loc[idx]
+
+        if len(more_idxs) > self.ds4_inp_len - 1:
+            more_idxs_new_keys = np.random.choice(
+                list(more_idxs.keys()),
+                min(len(more_idxs), self.ds4_inp_len-1),
+                replace=False
+            )
+            more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
+        return more_idxs
+
+    def get_more_idxs(self, idx):
+        """
+        Returns the set of ds4 idxs to consider
+        """
+        if self.split_type == 'train':
+            more_idxs, _ = create_similar_list(self.cfg, self.arg_dicts,
+                                               self.srl_annots, idx)
+        elif self.split_type == 'valid' or self.split_type == 'test':
+            # obtain predefined idxs
+            more_idxs = self.srl_annots.DS4_Inds.loc[idx]
+
+        if len(more_idxs) > self.ds4_inp_len - 1:
+            more_idxs_new_keys = np.random.choice(
+                list(more_idxs.keys()),
+                min(len(more_idxs), self.ds4_inp_len-1),
+                replace=False
+            )
+            more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
+
+        return more_idxs
+
+    def verb_item_getter(self, idx):
+        """
+        get verb items, one at a time
+        """
+        srl_row = self.srl_annots.loc[idx]
+        out = self.simple_item_getter(srl_row.ann_ind)
+        out_dict = self.get_srl_anns(srl_row, out)
+        out_dict['ann_idx'] = torch.tensor(srl_row.ann_ind).long()
+        out_dict['sent_idx'] = torch.tensor(idx).long()
+        out.update(out_dict)
+        return out
+
+    def verb_item_getter_ds4_screen_spatial(self, idx):
+        """
+        Use DS4 Indices.
+        The output is such that we have
+        four screens which being played at
+        the same time. The goal is to choose
+        the correct screen, and ground the
+        correct object in that screen.
+
+        Currently, we implement as
+        - 4 x region features
+        - 4 x temporal features
+        However, only one of the four videos
+        has the correct answer.
+
+        The way the model sees the input is
+        like one single video with 4 screens.
+        This is to get away from the problem of
+        no prediction score for the whole
+        video is generated by the model.
+
+        An alternative is to have scores
+        using BCE loss which makes the boxes independent.
+        This function implements the former.
+        See verb_item_getter_ds4_sigmoid for the latter
+        """
+        def reshuffle_boxes(inp_t):
+            n = inp_t.size(0)
+            inp_t = inp_t.view(
+                n, self.num_frms, self.num_prop_per_frm, *inp_t.shape[2:]
+            ).transpose(0, 1).contiguous().view(
+                self.num_frms * n * self.num_prop_per_frm, *inp_t.shape[2:]
+            )
+            return inp_t
+
+        def process_props(
+                props, shift=720,
+                keepdim=False, reshuffle_box=False
+        ):
+            """
+            props: n x 1000 x 7
+            NOTE: may need to resize
+            """
+            n, num_props, pdim = props.shape
+            delta = torch.arange(n) * shift
+            delta = delta.view(n, 1, 1).expand(
+                n, num_props, pdim)
+            delta_msk = props.new_zeros(*props.shape)
+            delta_msk[..., [0, 2]] = 1
+            delta = delta.float() * delta_msk.float()
+
+            props_new = props + delta
+            if reshuffle_box:
+                props_new = reshuffle_boxes(props_new)
+
+            if keepdim:
+                return props_new.view(n, num_props, pdim)
+            return props_new.view(n*num_props, pdim)
+
+        def process_gt_boxs(gt_boxs, nums):
+            gt_box1 = [gtb for gt_box, n1 in zip(
+                gt_boxs, nums) for gtb in gt_box[:n1]]
+            if len(gt_box1) == 0:
+                gt_box1 = [gt_boxs[0, 0]]
+            try:
+                gt_box1 = torch.stack(gt_box1)
+                out = F.pad(
+                    gt_box1, (0, 0, 0, self.max_gt_box - len(gt_box1)),
+                    mode='constant', value=0
+                )
+
+                assert out.shape == (self.max_gt_box, gt_boxs.size(2))
+            except:
+                ForkedPdb().set_trace()
+
+            return out
+
+        def process_gt_boxs_msk(gt_boxs, nums):
+            gt_box1 = [
+                gtb for gt_box, n1 in zip(gt_boxs, nums)
+                for gtb in gt_box[0, :n1]]
+            if len(gt_box1) == 0:
+                gt_box1 = [gt_boxs[0, 0]]
+            gt_box1 = torch.stack(gt_box1)
+            out = F.pad(
+                gt_box1, (0, 0, 0, self.max_gt_box - len(gt_box1)),
+                mode='constant', value=0
+            )
+
+            return out.unsqueeze(0)
+
+        out_dict = self.itemcollector(idx)
+        # assert not self.cfg.ds.shuffle_ds4
+        num_cmp = len(out_dict['new_srl_idxs'])
+
+        # need to make all the proposals
+        # x axis + n delta
+        # note that final num_cmp = 1 for videos
+        # for lang side B x num_verbs where
+        # num_verbs = 4
+        # num_cmp1 = out_dict['pad_proposals'].size(0)
+        out_dict['num_props'] = out_dict['num_props'].sum(dim=-1)
+        # out_dict['num_box'] = out_dict['num_box'].sum(dim=-1)
+        out_dict['num_cmp'] = torch.tensor(1)
+        out_dict['pad_proposals'] = process_props(
+            out_dict['pad_proposals'], keepdim=False, reshuffle_box=True
+        )
+
+        num_box = out_dict['num_box'].sum(dim=-1)
+
+        out_dict['pad_gt_bboxs'] = process_gt_boxs(
+            process_props(
+                out_dict['pad_gt_bboxs'], keepdim=True
+            ),
+            out_dict['num_box']
+        )
+        out_dict['pad_gt_box_mask'] = process_gt_boxs_msk(
+            out_dict['pad_gt_box_mask'], out_dict['num_box']
+        )
+
+        tcmp = out_dict['target_cmp'].item()
+        nboxes = [0] + out_dict['num_box'].cumsum(dim=0).tolist()
+        new_pos = nboxes[tcmp]
+        x1 = out_dict['srl_boxes']
+        x2 = out_dict['srl_boxes_lens']
+        x1[x2 > 0] += new_pos
+
+        out_dict['num_box2'] = out_dict['num_box'].clone()
+
+        # out_dict['num_box2'] = out_dict['num_box']
+        out_dict['num_box'] = num_box
+
+        frm_mask = self.get_frm_mask(
+            out_dict['pad_proposals'][:, 4],
+            out_dict['pad_gt_bboxs'][:num_box, 4]
+        )
+
+        pad_frm_mask = np.ones((num_cmp * self.max_proposals, self.max_gt_box))
+        pad_frm_mask[:, :num_box] = frm_mask
+        out_dict['pad_frm_mask'] = torch.from_numpy(pad_frm_mask).byte()
+
+        out_dict['pad_pnt_mask'] = reshuffle_boxes(
+            out_dict['pad_pnt_mask']
+        )
+        out_dict['pad_pnt_mask2'] = reshuffle_boxes(
+            out_dict['pad_pnt_mask2'][:, 1:].contiguous()
+        )
+
+        out_dict['pad_region_feature'] = reshuffle_boxes(
+            out_dict['pad_region_feature']
+        )
+
+        out_dict['seg_feature'] = combine_first_ax(
+            out_dict['seg_feature'], keepdim=False)
+        out_dict['seg_feature_for_frms'] = combine_first_ax(
+            out_dict['seg_feature_for_frms'].transpose(0, 1).contiguous(),
+            keepdim=False
+        )
+        out_dict['sample_idx'] = combine_first_ax(
+            out_dict['sample_idx'], keepdim=False
+        )
+
+        return out_dict
+
+    def verb_item_getter_ds4_screen_temporal(self, idx):
+        """
+        Similar to spatial, but stack in the temporal
+        dimension.
+        """
+        # For temporal stacking: do the following:
+        # mostly everything is stacked temporally,
+        # only the durations would perhaps change?
+        # bboxes frame ids would change
+        # Caveats: Videos are not of equal length
+        # The above is also applicable to spatial
+        def process_props(props, shift=10, keepdim=False,
+                          reshuffle_box=False):
+            """
+            props: n x 1000 x 7
+            NOTE: may need to resize
+            """
+            n, num_props, pdim = props.shape
+            delta = torch.arange(n) * shift
+            delta = delta.view(n, 1, 1).expand(n, num_props, pdim)
+            delta_msk = props.new_zeros(*props.shape)
+            delta_msk[..., [4]] = 1
+            delta = delta.float() * delta_msk.float()
+
+            props_new = props + delta
+            # if reshuffle_box:
+            #     props_new = props_new.view(
+            #         n, self.num_frms, self.num_prop_per_frm, pdim
+            #     ).transpose(0, 1).contiguous()
+
+            if keepdim:
+                return props_new.view(n, num_props, pdim)
+            return props_new.view(n*num_props, pdim)
+
+        def process_gt_boxs(gt_boxs, nums):
+            gt_box1 = [
+                gtb for gt_box, n1 in zip(gt_boxs, nums)
+                for gtb in gt_box[:n1]]
+            if len(gt_box1) == 0:
+                gt_box1 = [gt_boxs[0, 0]]
+            gt_box1 = torch.stack(gt_box1)
+            return F.pad(
+                gt_box1, (0, 0, 0, self.max_gt_box - len(gt_box1)),
+                mode='constant', value=0
+            )
+
+        def process_gt_boxs_msk(gt_boxs, nums):
+            gt_box1 = [
+                gtb for gt_box, n1 in zip(gt_boxs, nums)
+                for gtb in gt_box[0, :n1]]
+            if len(gt_box1) == 0:
+                gt_box1 = [gt_boxs[0, 0]]
+            gt_box1 = torch.stack(gt_box1)
+            out = F.pad(
+                gt_box1, (0, 0, 0, self.max_gt_box - len(gt_box1)),
+                mode='constant', value=0
+            )
+
+            return out.unsqueeze(0)
+
+        # Stack proposals in frames
+
+        out_dict = self.itemcollector(idx)
+        # assert not self.cfg.ds.shuffle_ds4
+        num_cmp = len(out_dict['new_srl_idxs'])
+        # need to make all the proposals
+        # x axis + n delta
+        # note that final num_cmp = 1 for videos
+        # for lang side B x num_verbs where
+        # num_verbs = 4
+        # num_cmp1 = out_dict['pad_proposals'].size(0)
+        num_props = out_dict['num_props'].sum(dim=-1)
+        out_dict['num_props'] = num_props
+        num_box = out_dict['num_box'].sum(dim=-1)
+        out_dict['num_cmp'] = torch.tensor(1)
+
+        out_dict['pad_proposals'] = process_props(
+            out_dict['pad_proposals'], keepdim=False)
+        # re-do gt boxes
+
+        out_dict['pad_gt_bboxs'] = process_gt_boxs(process_props(
+            out_dict['pad_gt_bboxs'], keepdim=True), out_dict['num_box'])
+
+        out_dict['pad_gt_box_mask'] = process_gt_boxs_msk(
+            out_dict['pad_gt_box_mask'], out_dict['num_box']
+        )
+
+        tcmp = out_dict['target_cmp'].item()
+        nboxes = [0] + out_dict['num_box'].cumsum(dim=0).tolist()
+        new_pos = nboxes[tcmp]
+        x1 = out_dict['srl_boxes']
+        x2 = out_dict['srl_boxes_lens']
+        x1[x2 > 0] += new_pos
+
+        out_dict['num_box2'] = out_dict['num_box'].clone()
+        out_dict['num_box'] = num_box
+        # frame mask is tricky, so redo
+        # out_dict['pad_frm_mask'] = combine_first_ax(
+        # out_dict['pad_frm_mask'], keepdim=False)
+
+        frm_mask = self.get_frm_mask(
+            out_dict['pad_proposals'][:, 4],
+            out_dict['pad_gt_bboxs'][:num_box, 4])
+        pad_frm_mask = np.ones((num_cmp * self.max_proposals, self.max_gt_box))
+        pad_frm_mask[:, :num_box] = frm_mask
+
+        out_dict['pad_region_feature'] = combine_first_ax(
+            out_dict['pad_region_feature'], keepdim=False
+        )
+
+        out_dict['pad_frm_mask'] = torch.from_numpy(pad_frm_mask).byte()
+        out_dict['pad_pnt_mask'] = combine_first_ax(
+            out_dict['pad_pnt_mask'], keepdim=False)
+        out_dict['pad_pnt_mask2'] = combine_first_ax(
+            out_dict['pad_pnt_mask2'][:, 1:].contiguous(), keepdim=False)
+        out_dict['seg_feature'] = combine_first_ax(
+            out_dict['seg_feature'], keepdim=False)
+        out_dict['seg_feature_for_frms'] = combine_first_ax(
+            out_dict['seg_feature_for_frms'], keepdim=False)
+        out_dict['sample_idx'] = combine_first_ax(
+            out_dict['sample_idx'], keepdim=False
+        )
+        out_dict['num'] = combine_first_ax(
+            out_dict['num'], keepdim=False)
+
+        # out_dict['sample_idx_mask'] = com
+
+        return out_dict
+
+    def verb_item_getter_screen_sep(self, idx):
+        """
+        When we want separate videos
+        """
+        return self.itemcollector(idx)
+
+    def verb_item_getter_ds4_sigmoid_single(self, idx):
+        """
+        Pass the gt query only
+        """
+        def append_to_every_dict(dct_list, new_dct):
+            "append a dict to every dict in a list of dicts"
+            for dct in dct_list:
+                dct.update(new_dct)
+            return
+
+        def shuffle_list_from_perm(lst, perm):
+            return [lst[ix] for ix in perm]
+        # more_idxs = self.get_more_idxs(idx)
+        more_idxs = self.more_idx_collector(idx)
+        # if self.cfg.ds.shuffle_ds4:
+
+        new_idxs = [idx]
+        lemma_verbs = self.srl_annots.lemma_verb
+        curr_verb = lemma_verbs.loc[idx]
+        verb_cmp = [1]
+        verb_list = [curr_verb]
+
+        if self.split_type == 'train':
+            cons = 0
+            while len(new_idxs) < self.ds4_inp_len:
+                for arg_name, arg_ids in more_idxs.items():
+                    if len(new_idxs) < self.ds4_inp_len:
+                        arg_id_to_append = arg_ids[cons]
+                        # TODO: should be removable
+                        if arg_id_to_append != -1:
+                            new_idxs += [arg_id_to_append]
+                            new_verb = lemma_verbs.loc[arg_id_to_append]
+                            verb_cmp += [int(new_verb == curr_verb)]
+                            verb_list += [new_verb]
+                cons += 1
+        else:
+            cons = 0
+            for arg_name, arg_ids in more_idxs.items():
+                if len(new_idxs) < self.ds4_inp_len:
+                    arg_id_to_append = arg_ids[cons]
+                    # TODO: should be removable
+                    if arg_id_to_append != -1:
+                        new_idxs += [arg_id_to_append]
+                        new_verb = lemma_verbs.loc[arg_id_to_append]
+                        verb_cmp += [int(new_verb == curr_verb)]
+                        verb_list += [new_verb]
+
+        if self.cfg.ds.shuffle_ds4:
+            simple_permute = torch.randperm(len(new_idxs))
+        else:
+            simple_permute = torch.arange(len(new_idxs))
+
+        simple_permute_inv = simple_permute.argsort()
+        simple_permute = simple_permute.tolist()
+        simple_permute_inv = simple_permute_inv.tolist()
+        targ_cmp = simple_permute_inv[0]
+
+        new_idxs = shuffle_list_from_perm(new_idxs, simple_permute)
+        verb_cmp = shuffle_list_from_perm(verb_cmp, simple_permute)
+        verb_list = shuffle_list_from_perm(verb_list, simple_permute)
+
+        ann_id_list = [self.srl_annots.loc[ix].ann_ind for ix in new_idxs]
+        new_out_dicts = [self.simple_item_getter(ann_ix) for ann_ix
+                         in ann_id_list]
+
+        srl_row = self.srl_annots.loc[idx]
+        out_dict_verb_for_idx = self.get_srl_anns(srl_row, new_out_dicts[0])
+
+        # out_dict_verb_for_idx['ann_idx'] = torch.tensor(srl_row.ann_ind).long()
+        # Append to every dict
+        if self.append_everywhere:
+            append_to_every_dict(new_out_dicts, out_dict_verb_for_idx)
+            collated_out_dicts, num_cmp = self.collate_dict_list(
+                new_out_dicts, pad_len=self.ds4_inp_len
+            )
+        else:
+            collated_out_dicts, num_cmp = self.collate_dict_list(
+                new_out_dicts, pad_len=self.ds4_inp_len)
+            out_dict_verb_for_idx_coll, _ = self.collate_dict_list(
+                [out_dict_verb_for_idx], pad_len=1)
+            collated_out_dicts.update(out_dict_verb_for_idx_coll)
+
+        new_srl_idxs_pad = self.pad_words_with_vocab(
+            new_idxs, pad_len=self.ds4_inp_len)
+
+        # verb_cross_cmp = np.ones((num_cmp, num_cmp))
+        verb_cmp_pad = self.pad_words_with_vocab(
+            verb_cmp, pad_len=self.ds4_inp_len, defm=[0])
+
+        if len(verb_list) > self.ds4_inp_len:
+            verb_list = verb_list[:self.ds4_inp_len]
+
+        verb_list_np = np.array(verb_list)
+        verb_cross_cmp = verb_list_np[:, None] == verb_list_np
+        verb_cross_cmp_msk = np.ones(verb_cross_cmp.shape)
+
+        verb_cross_cmp = np.pad(
+            verb_cross_cmp,
+            (0, self.ds4_inp_len - len(verb_list)),
+            mode='constant', constant_values=0
+        )
+
+        verb_cross_cmp_msk = np.pad(
+            verb_cross_cmp_msk,
+            (0, self.ds4_inp_len - len(verb_list)),
+            mode='constant', constant_values=0
+        )
+
+        num_cmp_arr = np.pad(
+            np.eye(num_cmp, num_cmp),
+            (0, self.ds4_inp_len - num_cmp),
+            mode='constant', constant_values=0
+        )
+
+        sp_pad = [ix for ix in range(
+            num_cmp, num_cmp + self.ds4_inp_len-num_cmp)]
+        simple_permute = simple_permute + sp_pad
+        assert len(simple_permute) == self.ds4_inp_len
+        simple_permute_inv = simple_permute_inv + sp_pad
+
+        out_dict_verb = {}
+        out_dict_verb['permute'] = torch.tensor(simple_permute).long()
+        out_dict_verb['permute_inv'] = torch.tensor(
+            simple_permute_inv).long()
+        out_dict_verb['target_cmp'] = torch.tensor(targ_cmp).long()
+        out_dict_verb['new_srl_idxs'] = torch.tensor(
+            new_srl_idxs_pad).long()
+        out_dict_verb['sent_idx'] = torch.tensor(idx).long()
+        out_dict_verb['num_cmp'] = torch.tensor(num_cmp).long()
+        out_dict_verb['num_cmp_msk'] = torch.tensor(
+            [1]*num_cmp + [0] * (self.ds4_inp_len - num_cmp))
+        out_dict_verb['num_cross_cmp_msk'] = torch.from_numpy(num_cmp_arr)
+        out_dict_verb['verb_cmp'] = torch.tensor(verb_cmp_pad).long()
+        out_dict_verb['verb_cross_cmp'] = torch.from_numpy(
+            verb_cross_cmp).long()
+        out_dict_verb['verb_cross_cmp_msk'] = torch.from_numpy(
+            verb_cross_cmp_msk).long()
+
+        collated_out_dicts.update(out_dict_verb)
+
+        return collated_out_dicts
+
+    def verb_item_getter_ds4_sigmoid(self, idx):
+        """
+        See `verb_item_getter_ds4_screen` for full details.
+        This implements the latter.
+        Note that here, the order is irrelevant,
+        the model treats each of them independently.
+        """
+        # out_dict = self.verb_item_getter(idx)
+        # srl_row = self.srl_annots.loc[idx]
+
+        # more_idxs = self.get_more_idxs(idx)
+        more_idxs = self.more_idx_collector(idx)
+
+        new_idxs = [idx]
+        lemma_verbs = self.srl_annots.lemma_verb
+        curr_verb = lemma_verbs.loc[idx]
+        verb_cmp = [1]
+        verb_list = [curr_verb]
+
+        for arg_name, arg_ids in more_idxs.items():
+            if len(new_idxs) < self.ds4_inp_len:
+                arg_id_to_append = arg_ids[0]
+                if arg_id_to_append != -1:
+                    new_idxs += [arg_id_to_append]
+                    new_verb = lemma_verbs.loc[arg_id_to_append]
+                    verb_cmp += [int(new_verb == curr_verb)]
+                    verb_list += [new_verb]
+
+        new_out_dicts = [self.verb_item_getter(
+            new_idx) for new_idx in new_idxs]
+
+        collated_out_dicts, num_cmp = self.collate_dict_list(
+            new_out_dicts, pad_len=self.ds4_inp_len)
+
+        new_srl_idxs_pad = self.pad_words_with_vocab(
+            new_idxs, pad_len=self.ds4_inp_len)
+
+        verb_cmp_pad = self.pad_words_with_vocab(
+            verb_cmp, pad_len=self.ds4_inp_len, defm=[2])
+
+        # verb_list_pad = self.pad_words_with_vocab(
+        # verb_list, pad_len=self.ds4_inp_len, defm=[-1])
+        if len(verb_list) > self.ds4_inp_len:
+            verb_list = verb_list[:self.ds4_inp_len]
+
+        verb_list_np = np.array(verb_list)
+        verb_cross_cmp = verb_list_np[:, None] == verb_list_np
+        verb_cross_cmp_msk = np.ones(verb_cross_cmp.shape)
+
+        verb_cross_cmp = np.pad(
+            verb_cross_cmp,
+            (0, self.ds4_inp_len - len(verb_list)),
+            mode='constant', constant_values=0
+        )
+
+        verb_cross_cmp_msk = np.pad(
+            verb_cross_cmp_msk,
+            (0, self.ds4_inp_len - len(verb_list)),
+            mode='constant', constant_values=0
+        )
+
+        # verb_cmp_pad_np = np.array(verb_cmp_pad)
+        # verb_cross_cmp_msk1d = verb_cmp_pad != 2
+        # verb_cross_cmp_msk2d = (
+        #     verb_cross_cmp_msk1d[:, None] == verb_cross_cmp_msk1d)
+
+        num_cmp_arr = np.pad(
+            np.eye(num_cmp, num_cmp),
+            (0, self.ds4_inp_len - num_cmp),
+            mode='constant', constant_values=0
+        )
+
+        out_dict_verb = {}
+        out_dict_verb['new_srl_idxs'] = torch.tensor(
+            new_srl_idxs_pad).long()
+        out_dict_verb['sent_idx'] = torch.tensor(idx).long()
+        out_dict_verb['num_cmp'] = torch.tensor(num_cmp).long()
+        out_dict_verb['num_cmp_msk'] = torch.tensor(
+            [1]*num_cmp + [0] * (self.ds4_inp_len - num_cmp))
+        out_dict_verb['verb_cmp'] = torch.tensor(verb_cmp_pad).long()
+        out_dict_verb['num_cross_cmp_msk'] = torch.from_numpy(num_cmp_arr)
+        out_dict_verb['verb_cross_cmp'] = torch.from_numpy(
+            verb_cross_cmp).long()
+        out_dict_verb['verb_cross_cmp_msk'] = torch.from_numpy(
+            verb_cross_cmp_msk).long()
+
+        collated_out_dicts.update(out_dict_verb)
+        return collated_out_dicts
+
+
+class AnetVerbDS4(AVDS4, AnetVerbDataset):
+    def __init__(self, cfg: CN, ann_file: Fpath, split_type: str = 'train',
+                 comm: Dict = None):
+        AnetVerbDataset.__init__(self, cfg, ann_file, split_type, comm)
+
+
+def get_data(cfg):
+    # Get which dataset to use
+    # ds_name = cfg.ds_to_use
+    DS = AnetVerbDS4
+
+    # Training file
+    trn_ann_file = cfg.ds['trn_ann_file']
+    trn_ds = DS(cfg=cfg, ann_file=trn_ann_file,
+                split_type='train')
+    trn_dl = get_dataloader(cfg, trn_ds, is_train=True)
+
+    # Validation file
+    val_ann_file = cfg.ds['val_ann_file']
+    val_ds = DS(cfg=cfg, ann_file=val_ann_file,
+                split_type='valid')
+    val_dl = get_dataloader(cfg, val_ds, is_train=False)
+
+    test_ann_file = cfg.ds['test_ann_file']
+    test_ds = DS(cfg=cfg, ann_file=test_ann_file,
+                 split_type='test')
+    test_dl = get_dataloader(cfg, test_ds, is_train=False)
+
+    data = DataWrap(path=cfg.misc.tmp_path, train_dl=trn_dl, valid_dl=val_dl,
+                    test_dl={'test0': test_dl})
+    return data
+
+
 if __name__ == '__main__':
     cfg = CN(yaml.safe_load(open('./configs/anet_srl_cfg.yml')))
+    data = get_data(cfg)
 
-    anet_ent_ds = AnetEntDataset(
-        cfg=cfg, ann_file=cfg.ds.ann_file.train,
-        split_type='train'
-    )
+    diter = iter(data.train_dl)
+    batch = next(diter)
+
+    # anet_ent_ds = AnetEntDataset(
+    #     cfg=cfg, ann_file=cfg.ds.ann_file.train,
+    #     split_type='train'
+    # )

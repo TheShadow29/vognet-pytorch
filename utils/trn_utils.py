@@ -4,7 +4,9 @@ Utility functions
 from typing import Dict, List, Optional, Union, Any, Callable
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.sampler import Sampler
+from torch.utils.data.distributed import DistributedSampler
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -120,6 +122,85 @@ class DataWrap:
     train_dl: DataLoader
     valid_dl: DataLoader
     test_dl: Optional[Union[DataLoader, Dict]] = None
+
+
+class NewDistributedSampler(DistributedSampler):
+    """
+    Same as default distributed sampler of pytorch
+    Just has another argument for shuffle
+    Allows distributed in validation/testing as well
+    """
+
+    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True):
+        super().__init__(dataset, num_replicas=num_replicas, rank=rank)
+        self.shuffle = shuffle
+
+    def __iter__(self):
+        if self.shuffle:
+            # deterministically shuffle based on epoch
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            indices = torch.randperm(len(self.dataset), generator=g).tolist()
+        else:
+            indices = torch.arange(len(self.dataset)).tolist()
+
+        # add extra samples to make it evenly divisible
+        indices += indices[: (self.total_size - len(indices))]
+        assert len(indices) == self.total_size
+
+        # subsample
+        offset = self.num_samples * self.rank
+        indices = indices[offset: offset + self.num_samples]
+        assert len(indices) == self.num_samples
+
+        return iter(indices)
+
+
+def make_data_sampler(dataset: Dataset, shuffle: bool,
+                      distributed: bool) -> Sampler:
+    if distributed:
+        return NewDistributedSampler(dataset, shuffle=shuffle)
+    if shuffle:
+        sampler = torch.utils.data.sampler.RandomSampler(dataset)
+    else:
+        sampler = torch.utils.data.sampler.SequentialSampler(dataset)
+    return sampler
+
+
+def get_dataloader(cfg, dataset: Dataset, is_train: bool,
+                   collator_fn) -> DataLoader:
+    is_distributed = cfg.do_dist
+    images_per_gpu = cfg.train.bs if is_train else cfg.train.bsv
+    nw = cfg.train.nw if is_train else cfg.train.nwv
+    if is_distributed:
+        # DistributedDataParallel
+        batch_size = images_per_gpu
+        num_workers = nw
+    elif cfg.do_dp:
+        # DataParallel
+        batch_size = images_per_gpu * cfg.num_gpus
+        num_workers = nw * cfg.num_gpus
+    else:
+        batch_size = images_per_gpu
+        num_workers = nw
+
+    if is_train:
+        shuffle = True
+    else:
+        shuffle = False if not is_distributed else True
+        # shuffle = False
+
+    sampler = make_data_sampler(dataset, shuffle, is_distributed)
+    # if ((cfg.ds.ds4_type == 'sigmoid' or cfg.ds.ds4_type == 'sigmoid_single_q')
+    #         and cfg.ds.ds4_screen == 'screen_sep'):
+    #     collator = BatchCollatorDS4(cfg)
+    # else:
+    collator = collator_fn(cfg)
+
+    return DataLoader(dataset, batch_size=batch_size,
+                      sampler=sampler, drop_last=is_train,
+                      num_workers=num_workers,
+                      collate_fn=collator)
 
 
 class SmoothenValue():

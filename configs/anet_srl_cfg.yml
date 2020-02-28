@@ -22,9 +22,17 @@ ds:
   anet_cap_file: "data/anet_srl_scratch/anet_captions_all_splits.json"
   anet_ent_annot_file: "data/anet_srl_scratch/anet_ent_cls_bbox_trainval.json"
   anet_ent_split_file: "data/anet_srl_scratch/dic_anet.json"
-  ann_file:
-    train: "data/anet_srl_scratch/csv_dir/train_postproc.csv"
-    valid: "data/anet_srl_scratch/csv_dir/val_postproc.csv"
+  include_srl_args: ['ARG0', 'ARG1', 'ARG2', 'ARGM-LOC']
+  # Annot files:
+  trn_ann_file: "data/anet_srl_scratch/csv_dir/train_postproc.csv"
+  val_ann_file: "data/anet_srl_scratch/csv_dir/val_postproc.csv"
+  # Object Mappings:
+  trn_ds4_dicts: "data/anet_verb/trn_srl_args_dict_obj_to_ind.json"
+  val_ds4_dicts: "data/anet_verb/val_srl_args_dict_obj_to_ind.json"
+  # ASRL with indices for SPAT/TEMP
+  trn_ds4_inds: "data/anet_verb/trn_srl_annots_with_ds4_inds.csv"
+  val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
+
 
 misc:
   prop_thresh: 0.

@@ -36,7 +36,7 @@ import copy
 import ast
 import numpy as np
 from _init_stuff import CN, yaml
-
+from typing import List
 np.random.seed(seed=5)
 
 
@@ -458,24 +458,36 @@ class AnetDSCreator:
         return args_dict_out
 
 
-if __name__ == '__main__':
+def main(splits: List):
+    if not isinstance(splits, list):
+        assert isinstance(splits, str)
+        splits = [splits]
     cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
-    for split_type in ['valid', 'train', 'trn_val']:
-        # for split_type in ['only_val', 'valid', 'train', 'trn_val']:
-        # cfg.ouch = 0
-        # cfg.yolo = 0
-
-        # cfg.ouch2 = 0
-        # cfg.yolo2 = 0
-
+    for split_type in splits:
         anet_ds = AnetDSCreator(cfg)
-        # anet_ds.create_dicts_srl()
         anet_ds.create_similar_lists(split_type=split_type)
 
-        break
 
-        # anet_ds.create_similar_lists(split_type='trn_val')
-        # anet_ds.create_similar_lists(split_type='train')
-        # anet_ds.create_similar_lists(split_type='valid')
-        # print(cfg.ouch, cfg.yolo, cfg.yolo+cfg.ouch)
-        # print(cfg.ouch2, cfg.yolo2, cfg.yolo2+cfg.ouch2)
+if __name__ == '__main__':
+    import fire
+    fire.Fire(main)
+    # cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
+    # for split_type in ['valid', 'train']:
+    #     # for split_type in ['only_val', 'valid', 'train', 'trn_val']:
+    #     # cfg.ouch = 0
+    #     # cfg.yolo = 0
+
+    #     # cfg.ouch2 = 0
+    #     # cfg.yolo2 = 0
+
+    #     anet_ds = AnetDSCreator(cfg)
+    #     # anet_ds.create_dicts_srl()
+    #     anet_ds.create_similar_lists(split_type=split_type)
+
+    #     # break
+
+    #     # anet_ds.create_similar_lists(split_type='trn_val')
+    #     # anet_ds.create_similar_lists(split_type='train')
+    #     # anet_ds.create_similar_lists(split_type='valid')
+    #     # print(cfg.ouch, cfg.yolo, cfg.yolo+cfg.ouch)
+    #     # print(cfg.ouch2, cfg.yolo2, cfg.yolo2+cfg.ouch2)
