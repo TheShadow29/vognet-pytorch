@@ -33,6 +33,8 @@ ds:
   # ASRL with indices for SPAT/TEMP
   trn_ds4_inds: "data/anet_verb/trn_srl_annots_with_ds4_inds.csv"
   val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
+  # Arg Vocab:
+  arg_vocab_file: "data/anet_verb/arg_vocab.pkl"
   # None
   none_word: "<none>"
   # GT5

@@ -316,6 +316,30 @@ class AnetEntDataset(Dataset):
             pass
         return seg_feats_frms, seg_feats_frms_glob
 
+    def get_gt_annots(self, caption_dct: Dict, idx: int):
+        gt_bboxs = torch.tensor(caption_dct['bbox']).float()
+        gt_frms = torch.tensor(caption_dct['frm_idx']).unsqueeze(-1).float()
+        assert len(gt_bboxs) == len(gt_frms)
+        num_box = len(gt_bboxs)
+        gt_bboxs_t = torch.cat([gt_bboxs, gt_frms], dim=-1)
+
+        padded_gt_bboxs = self.pad_words_with_vocab(
+            gt_bboxs_t.tolist(),
+            pad_len=self.max_gt_box,
+            defm=[[0]*5]
+        )
+        padded_gt_bboxs_mask_list = [1] * num_box
+        padded_gt_box_mask = self.pad_words_with_vocab(
+            padded_gt_bboxs_mask_list,
+            pad_len=self.max_gt_box,
+            defm=[0]
+        )
+        return {
+            'padded_gt_bboxs': np.array(padded_gt_bboxs),
+            'padded_gt_box_mask': np.array([padded_gt_box_mask]),
+            'num_box': num_box
+        }
+
     def simple_item_getter(self, idx: int):
         """
         Basically, this returns stuff for the
@@ -373,18 +397,18 @@ class AnetEntDataset(Dataset):
         )
         # get gt annotations
         # Get the act ent annotations
-        # captions = [self.anet_ent_captions[vid_id]['segments'][seg_id]]
-        # ncap = len(captions)
+        caption_dct = self.anet_ent_captions[vid_id]['segments'][seg_id]
 
-        # gt_annot_dict = self.get_gt_annots(captions, idx)
+        gt_annot_dict = self.get_gt_annots(caption_dct, idx)
 
-        # # pad_gt_bboxs = gt_annot_dict['padded_gt_box']
-        # # num_box = gt_annot_dict['num_box']
+        pad_gt_bboxs = gt_annot_dict['padded_gt_bboxs']
+        num_box = gt_annot_dict['num_box']
 
-        # frm_mask = self.get_frm_mask(
-        #     padded_props[:num_props, 4], pad_gt_bboxs[:num_box, 4])
-        # pad_frm_mask = np.ones((self.max_proposals, self.max_gt_box))
-        # pad_frm_mask[:num_props, :num_box] = frm_mask
+        frm_mask = self.get_frm_mask(
+            padded_props[:num_props, 4], pad_gt_bboxs[:num_box, 4]
+        )
+        pad_frm_mask = np.ones((self.max_proposals, self.max_gt_box))
+        pad_frm_mask[:num_props, :num_box] = frm_mask
 
         # 0 - number of captions
         # 1 - number of proposals
@@ -422,16 +446,16 @@ class AnetEntDataset(Dataset):
             # 'num': num,
             # 'seq_len': torch.tensor(gt_annot_dict['seq_len']).long(),
             'num_props': torch.tensor(num_props).long(),
-            # 'num_box': torch.tensor(num_box).long(),
+            'num_box': torch.tensor(num_box).long(),
             'pad_proposals': torch.tensor(padded_props).float(),
-            # 'pad_gt_bboxs': torch.tensor(pad_gt_bboxs).float(),
-            # 'pad_gt_box_mask': torch.tensor(
-            # gt_annot_dict['padded_gt_box_mask']).byte(),
+            'pad_gt_bboxs': torch.tensor(pad_gt_bboxs).float(),
+            'pad_gt_box_mask': torch.tensor(
+                gt_annot_dict['padded_gt_box_mask']).byte(),
             'seg_id': torch.tensor(int(seg_id)).long(),
             'idx': torch.tensor(idx).long(),
             'ann_idx': torch.tensor(idx).long(),
             'pad_region_feature': torch.tensor(pad_region_feature).float(),
-            # 'pad_frm_mask': torch.tensor(pad_frm_mask).byte(),
+            'pad_frm_mask': torch.tensor(pad_frm_mask).byte(),
             'sample_idx': torch.tensor(sample_idx).long(),
             'pad_pnt_mask': pad_pnt_mask.byte(),
             # 'pad_pnt_mask2': pnt_mask2.byte(),
@@ -569,7 +593,7 @@ class AnetVerbDataset(AnetEntDataset):
             return self.pad_words_with_vocab(out_list,
                                              voc, pad_len=pad_len), curr_len
 
-        vis_set = self.cfg.ds.includ_srl_args
+        vis_set = self.cfg.ds.include_srl_args
         # want to get the arguments and the word indices
         srl_args, srl_words_inds = [list(t) for t in zip(*srl_row.req_pat_ix)]
         srl_args_visual_msk = self.pad_words_with_vocab(
@@ -875,14 +899,13 @@ class AVDS4:
         with open(arg_dict_file) as f:
             self.arg_dicts = json.load(f)
 
-        assert self.cfg.ds.proc_type == 'one_verb'
         self.max_srl_in_sent = 1
 
         if self.split_type == 'train':
-            self.ds4_sample = self.cfg.ds.trn_ds4_sample
+            self.ds4_sample = self.cfg.ds.trn_sample
             assert self.ds4_sample in set(['ds4', 'random', 'ds4_random'])
         elif self.split_type == 'valid' or self.split_type == 'test':
-            self.ds4_sample = self.cfg.ds.val_ds4_sample
+            self.ds4_sample = self.cfg.ds.val_sample
             assert self.ds4_sample in set(['ds4', 'random'])
         else:
             raise NotImplementedError
@@ -898,47 +921,39 @@ class AVDS4:
             raise NotImplementedError
 
         if self.split_type == 'train':
-            ds4_sigm_num_inp = self.cfg.misc.trn_ds4_sigm_num_inp
+            ds4_sigm_num_inp = self.cfg.ds.trn_num_vid_sample
         elif self.split_type in set(['valid', 'test']):
-            ds4_sigm_num_inp = self.cfg.misc.val_ds4_sigm_num_inp
-        else:
-            raise NotImplementedError
-        if self.cfg.ds.ds4_type == 'sigmoid':
-            self.ds4_inp_len = ds4_sigm_num_inp
-            self.itemcollector = getattr(self, 'verb_item_getter_ds4_sigmoid')
-        elif self.cfg.ds.ds4_type == 'sigmoid_single_q':
-            self.ds4_inp_len = ds4_sigm_num_inp
-            self.itemcollector = getattr(
-                self, 'verb_item_getter_ds4_sigmoid_single'
-            )
-        elif self.cfg.ds.ds4_type == 'single':
-            self.ds4_inp_len = 1
-            self.itemcollector = getattr(
-                self, 'verb_item_getter_ds4_sigmoid_single'
-            )
-
-            # self.itemcollector = getattr(self, 'verb_item_getter_ds4_sigmoid')
+            ds4_sigm_num_inp = self.cfg.ds.val_num_vid_sample
         else:
             raise NotImplementedError
 
-        if self.cfg.ds.ds4_screen == 'screen_spatial':
+        self.ds4_inp_len = ds4_sigm_num_inp
+        self.itemcollector = getattr(
+            self, 'verb_item_getter_ds4_sigmoid_single'
+        )
+
+        if self.cfg.ds.concat_type == 'spat':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_ds4_screen_spatial')
             self.append_everywhere = False
-        elif self.cfg.ds.ds4_screen == 'screen_temporal':
+        elif self.cfg.ds.concat_type == 'temp':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_ds4_screen_temporal')
             self.append_everywhere = False
-        elif self.cfg.ds.ds4_screen == 'screen_sep':
+        elif self.cfg.ds.concat_type == 'sep':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_screen_sep')
             self.append_everywhere = True
-            # self.append_everywhere = False
+        elif self.cfg.ds.concat_type == 'svsq':
+            self.itemgetter = getattr(
+                self, 'verb_item_getter_screen_sep')
+            self.append_everywhere = True
+            self.ds4_inp_len = 1
         else:
             raise NotImplementedError
 
         # Whether to shuffle among the four screens
-        self.ds4_shuffle = self.cfg.ds.shuffle_ds4
+        self.ds4_shuffle = self.cfg.ds.cs_shuffle
 
         with open(self.cfg.ds.arg_vocab_file, 'rb') as f:
             self.arg_vocab = pickle.load(f)
@@ -949,7 +964,7 @@ class AVDS4:
     def get_ds4_and_random_more_idx(self, idx):
         """
         Either choose at random or
-        choose ds4
+        choose via CS
         """
         if np.random.random() < 0.5:
             return self.get_random_more_idx(idx)
@@ -1089,7 +1104,7 @@ class AVDS4:
         def process_gt_boxs_msk(gt_boxs, nums):
             gt_box1 = [
                 gtb for gt_box, n1 in zip(gt_boxs, nums)
-                for gtb in gt_box[0, :n1]]
+                for gtb in gt_box[:n1]]
             if len(gt_box1) == 0:
                 gt_box1 = [gt_boxs[0, 0]]
             gt_box1 = torch.stack(gt_box1)
@@ -1101,7 +1116,6 @@ class AVDS4:
             return out.unsqueeze(0)
 
         out_dict = self.itemcollector(idx)
-        # assert not self.cfg.ds.shuffle_ds4
         num_cmp = len(out_dict['new_srl_idxs'])
 
         # need to make all the proposals
@@ -1153,9 +1167,9 @@ class AVDS4:
         out_dict['pad_pnt_mask'] = reshuffle_boxes(
             out_dict['pad_pnt_mask']
         )
-        out_dict['pad_pnt_mask2'] = reshuffle_boxes(
-            out_dict['pad_pnt_mask2'][:, 1:].contiguous()
-        )
+        # out_dict['pad_pnt_mask2'] = reshuffle_boxes(
+        # out_dict['pad_pnt_mask2'][:, 1:].contiguous()
+        # )
 
         out_dict['pad_region_feature'] = reshuffle_boxes(
             out_dict['pad_region_feature']
@@ -1236,7 +1250,6 @@ class AVDS4:
         # Stack proposals in frames
 
         out_dict = self.itemcollector(idx)
-        # assert not self.cfg.ds.shuffle_ds4
         num_cmp = len(out_dict['new_srl_idxs'])
         # need to make all the proposals
         # x axis + n delta
@@ -1286,8 +1299,8 @@ class AVDS4:
         out_dict['pad_frm_mask'] = torch.from_numpy(pad_frm_mask).byte()
         out_dict['pad_pnt_mask'] = combine_first_ax(
             out_dict['pad_pnt_mask'], keepdim=False)
-        out_dict['pad_pnt_mask2'] = combine_first_ax(
-            out_dict['pad_pnt_mask2'][:, 1:].contiguous(), keepdim=False)
+        # out_dict['pad_pnt_mask2'] = combine_first_ax(
+        # out_dict['pad_pnt_mask2'][:, 1:].contiguous(), keepdim=False)
         out_dict['seg_feature'] = combine_first_ax(
             out_dict['seg_feature'], keepdim=False)
         out_dict['seg_feature_for_frms'] = combine_first_ax(
@@ -1322,7 +1335,6 @@ class AVDS4:
             return [lst[ix] for ix in perm]
         # more_idxs = self.get_more_idxs(idx)
         more_idxs = self.more_idx_collector(idx)
-        # if self.cfg.ds.shuffle_ds4:
 
         new_idxs = [idx]
         lemma_verbs = self.srl_annots.lemma_verb
@@ -1355,7 +1367,7 @@ class AVDS4:
                         verb_cmp += [int(new_verb == curr_verb)]
                         verb_list += [new_verb]
 
-        if self.cfg.ds.shuffle_ds4:
+        if self.cfg.ds.cs_shuffle:
             simple_permute = torch.randperm(len(new_idxs))
         else:
             simple_permute = torch.arange(len(new_idxs))
@@ -1546,30 +1558,67 @@ class AnetVerbDS4(AVDS4, AnetVerbDataset):
         AnetVerbDataset.__init__(self, cfg, ann_file, split_type, comm)
 
 
+class BatchCollator:
+    """
+    Need to redefine this perhaps
+    """
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.after_init()
+
+    def after_init(self):
+        pass
+
+    def __call__(self, batch):
+        out_dict = {}
+
+        # nothing needs to be done
+        all_keys = list(batch[0].keys())
+        batch_size = len(batch)
+        for k in all_keys:
+            shape = batch[0][k].shape
+            if not all([b[k].shape == shape for b in batch]):
+                ForkedPdb().set_trace()
+            out_dict[k] = torch.stack(
+                    [b[k] for b in batch])
+        assert all([len(v) == batch_size for k, v in out_dict.items()])
+
+        # num_cmp = out_dict['new_srl_idxs'].size(1)
+        # simple_permute = torch.arange(num_cmp)
+        # simple_permute_inv = simple_permute.argsort()
+        # out_dict['permute_inv'] = torch.stack(
+        #     [simple_permute_inv for b in batch])
+        # out_dict['permute'] = torch.stack(
+        #     [simple_permute for b in batch])
+        # out_dict['target_cmp'] = torch.tensor([0]*batch_size).long()
+
+        return out_dict
+
+
 def get_data(cfg):
     # Get which dataset to use
     # ds_name = cfg.ds_to_use
     DS = AnetVerbDS4
 
+    collate_fn = BatchCollator
+
     # Training file
     trn_ann_file = cfg.ds['trn_ann_file']
     trn_ds = DS(cfg=cfg, ann_file=trn_ann_file,
                 split_type='train')
-    trn_dl = get_dataloader(cfg, trn_ds, is_train=True)
+    trn_dl = get_dataloader(cfg, trn_ds, is_train=True,
+                            collate_fn=collate_fn)
 
     # Validation file
     val_ann_file = cfg.ds['val_ann_file']
     val_ds = DS(cfg=cfg, ann_file=val_ann_file,
                 split_type='valid')
-    val_dl = get_dataloader(cfg, val_ds, is_train=False)
-
-    test_ann_file = cfg.ds['test_ann_file']
-    test_ds = DS(cfg=cfg, ann_file=test_ann_file,
-                 split_type='test')
-    test_dl = get_dataloader(cfg, test_ds, is_train=False)
+    val_dl = get_dataloader(cfg, val_ds, is_train=False,
+                            collate_fn=collate_fn)
 
     data = DataWrap(path=cfg.misc.tmp_path, train_dl=trn_dl, valid_dl=val_dl,
-                    test_dl={'test0': test_dl})
+                    test_dl=None)
     return data
 
 

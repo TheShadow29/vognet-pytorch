@@ -11,9 +11,10 @@ from yacs.config import CfgNode as CN
 import numpy as np
 import ast
 from collections import Counter
-# from torchtext import vocab
+from torchtext import vocab
 import pickle
 from munch import Munch
+
 
 np.random.seed(5)
 
@@ -292,9 +293,10 @@ if __name__ == '__main__':
     cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
     anet_csv = AnetCSV(cfg)
 
-    anet_csv.create_csvs()
+    # anet_csv.create_csvs()
 
-    anet_csv.post_proc('train')
-    anet_csv.post_proc('val')
+    # anet_csv.post_proc('train')
+    # anet_csv.post_proc('val')
 
-    anet_csv.post_proc_srl('train', 'val')
+    # anet_csv.post_proc_srl('train', 'val')
+    anet_csv.process_arg_vocabs()

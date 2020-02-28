@@ -168,7 +168,7 @@ def make_data_sampler(dataset: Dataset, shuffle: bool,
 
 
 def get_dataloader(cfg, dataset: Dataset, is_train: bool,
-                   collator_fn) -> DataLoader:
+                   collate_fn) -> DataLoader:
     is_distributed = cfg.do_dist
     images_per_gpu = cfg.train.bs if is_train else cfg.train.bsv
     nw = cfg.train.nw if is_train else cfg.train.nwv
@@ -195,7 +195,7 @@ def get_dataloader(cfg, dataset: Dataset, is_train: bool,
     #         and cfg.ds.ds4_screen == 'screen_sep'):
     #     collator = BatchCollatorDS4(cfg)
     # else:
-    collator = collator_fn(cfg)
+    collator = collate_fn(cfg)
 
     return DataLoader(dataset, batch_size=batch_size,
                       sampler=sampler, drop_last=is_train,

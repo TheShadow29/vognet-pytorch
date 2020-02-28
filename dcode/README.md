@@ -87,7 +87,8 @@ anet_verb/
 |-- verb_lemma_dict.json     # dictionary of verbs corresponding to their lemma
 ```
 
-1. Use the Train/Val videos from AE to create Train/Val/Test videos for ASRL (~5-7 mins)
+1. Use the Train/Val videos from AE to create Train/Val/Test videos for ASRL (~5-7 mins).
+Additionally, create the vocab file for the SRL arguments
 ```
 cd $ROOT
 python dcode/prepoc_ds_files.py
