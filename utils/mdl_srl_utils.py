@@ -88,18 +88,8 @@ class LSTMEncoder(nn.Module):
         self.hidden_size = hidden_size
 
         num_embeddings = num_embeddings
-        num_tag_emb = 100
-        self.num_tag_emb = 100
-        tag_emb_dim = cfg.mdl.tag_dim
         self.padding_idx = pad_idx
-        if cfg.mdl.lang_use_tags:
-            embed_dim1 = embed_dim - tag_emb_dim
-            self.embed_tags = nn.Embedding(
-                num_tag_emb, tag_emb_dim, 1
-            )
-
-        else:
-            embed_dim1 = embed_dim
+        embed_dim1 = embed_dim
         if pretrained_embed is None:
             self.embed_tokens = nn.Embedding(
                 num_embeddings, embed_dim1, self.padding_idx
@@ -121,7 +111,7 @@ class LSTMEncoder(nn.Module):
         if bidirectional:
             self.output_units *= 2
 
-    def forward(self, src_tokens, src_lengths, src_tags=None):
+    def forward(self, src_tokens, src_lengths):
         if self.left_pad:
             # nn.utils.rnn.pack_padded_sequence requires right-padding;
             # convert left-padding to right-padding
@@ -130,21 +120,10 @@ class LSTMEncoder(nn.Module):
                 self.padding_idx,
                 left_to_right=True,
             )
-            if src_tags is not None:
-                src_tags = utils.convert_padding_direction(
-                    src_tags,
-                    self.padding_idx,
-                    left_to_right=True,
-                )
 
         bsz, seqlen = src_tokens.size()
         # embed tokens
         x = self.embed_tokens(src_tokens)
-        if src_tags is not None:
-            assert src_tokens.shape == src_tags.shape
-            assert (src_tags < self.num_tag_emb).all()
-            x_tags = self.embed_tags(src_tags)
-            x = torch.cat([x, x_tags], dim=-1)
 
         x = F.dropout(x, p=self.dropout_in, training=self.training)
 

@@ -4,29 +4,11 @@ from yacs.config import CfgNode as CN
 from _init_stuff import yaml
 from typing import Dict, Any
 
-# ds_info = CN(json.load(open('./configs/ds_info.json')))
-# def_cfg = CN(json.load(open('./configs/cfg.json')))
-with open('./configs/anet_ent_cfg.yaml') as f:
+with open('./configs/anet_srl_cfg.yml') as f:
     def_cfg = yaml.safe_load(f)
 
 cfg = CN(def_cfg)
 cfg.comm = CN()
-
-
-# Device
-# setting default device
-cfg.device = 'cuda'
-
-# Training
-cfg.local_rank = 0
-cfg.do_dist = False
-
-# Testing
-cfg.only_val = False
-cfg.only_test = False
-
-# Mdl
-cfg.pretrained_path = './save/anet-sup-0.05-0-0.1-run1/model-best.pth'
 
 key_maps = {}
 
@@ -100,37 +82,7 @@ def update_from_dict(cfg: CN, dct: Dict[str, Any],
 
 
 def post_proc_config(cfg: CN):
-    if cfg.ds.add_prop_to_region:
-        cfg.mdl.att_feat_size += 5
-    if cfg.ds.use_gt_prop:
-        if cfg.ds.ngt_prop == 10:
-            cfg.ds.proposal_h5 = cfg.ds.proposal_gt10_h5
-            cfg.ds.feature_root = cfg.ds.feature_gt10_root
-            cfg.misc.num_prop_per_frm = 10
-        elif cfg.ds.ngt_prop == 5:
-            cfg.ds.proposal_h5 = cfg.ds.proposal_gt5_h5
-            cfg.ds.feature_root = cfg.ds.feature_gt5_root
-            cfg.misc.num_prop_per_frm = 5
-        else:
-            raise NotImplementedError
+    """
+    Add any post processing based on cfg
+    """
     return cfg
-    pass
-
-# def get_config_after_kwargs(cfg, kwargs: Dict[str, Any]):
-# ds_info = CN(json.load(open('./configs/ds_info.json')))
-# def_cfg = CN(json.load(open('./configs/cfg.json')))
-
-#     upd_cfg = update_from_dict(def_cfg, kwargs, key_maps)
-
-#     cfg_dict = {
-#         'ds_to_use': upd_cfg.ds_to_use,
-#         'mdl_to_use': upd_cfg.mdl_to_use,
-#         'lfn_to_use': upd_cfg.lfn_to_use,
-#         'efn_to_use': upd_cfg.efn_to_use,
-#         'opt_to_use': upd_cfg.opt_to_use,
-#         'sfn_to_use': upd_cfg.sfn_to_use
-#     }
-
-#     cfg = CN(cfg_dict)
-
-#     cfg = create_from_dict(ds_info[cfg.ds_to_use], 'DS', cfg)

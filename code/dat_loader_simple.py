@@ -82,6 +82,7 @@ class AnetEntDataset(Dataset):
         # By default it is 10 * 100
         self.num_frms = self.cfg.ds.num_sampled_frm
         self.num_prop_per_frm = dct['num_prop_per_frm']
+        self.comm.num_prop_per_frm = self.num_prop_per_frm
         self.max_proposals = self.num_prop_per_frm * self.num_frms
 
         # Assert h5 file to read from exists
@@ -336,7 +337,7 @@ class AnetEntDataset(Dataset):
         )
         return {
             'padded_gt_bboxs': np.array(padded_gt_bboxs),
-            'padded_gt_box_mask': np.array([padded_gt_box_mask]),
+            'padded_gt_box_mask': np.array(padded_gt_box_mask),
             'num_box': num_box
         }
 
@@ -932,19 +933,19 @@ class AVDS4:
             self, 'verb_item_getter_ds4_sigmoid_single'
         )
 
-        if self.cfg.ds.concat_type == 'spat':
+        if self.cfg.ds.conc_type == 'spat':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_ds4_screen_spatial')
             self.append_everywhere = False
-        elif self.cfg.ds.concat_type == 'temp':
+        elif self.cfg.ds.conc_type == 'temp':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_ds4_screen_temporal')
             self.append_everywhere = False
-        elif self.cfg.ds.concat_type == 'sep':
+        elif self.cfg.ds.conc_type == 'sep':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_screen_sep')
             self.append_everywhere = True
-        elif self.cfg.ds.concat_type == 'svsq':
+        elif self.cfg.ds.conc_type == 'svsq':
             self.itemgetter = getattr(
                 self, 'verb_item_getter_screen_sep')
             self.append_everywhere = True
@@ -1109,11 +1110,11 @@ class AVDS4:
                 gt_box1 = [gt_boxs[0, 0]]
             gt_box1 = torch.stack(gt_box1)
             out = F.pad(
-                gt_box1, (0, 0, 0, self.max_gt_box - len(gt_box1)),
+                gt_box1, (0, self.max_gt_box - len(gt_box1)),
                 mode='constant', value=0
             )
 
-            return out.unsqueeze(0)
+            return out
 
         out_dict = self.itemcollector(idx)
         num_cmp = len(out_dict['new_srl_idxs'])
@@ -1139,6 +1140,7 @@ class AVDS4:
             ),
             out_dict['num_box']
         )
+
         out_dict['pad_gt_box_mask'] = process_gt_boxs_msk(
             out_dict['pad_gt_box_mask'], out_dict['num_box']
         )
@@ -1236,12 +1238,12 @@ class AVDS4:
         def process_gt_boxs_msk(gt_boxs, nums):
             gt_box1 = [
                 gtb for gt_box, n1 in zip(gt_boxs, nums)
-                for gtb in gt_box[0, :n1]]
+                for gtb in gt_box[:n1]]
             if len(gt_box1) == 0:
                 gt_box1 = [gt_boxs[0, 0]]
             gt_box1 = torch.stack(gt_box1)
             out = F.pad(
-                gt_box1, (0, 0, 0, self.max_gt_box - len(gt_box1)),
+                gt_box1, (0, self.max_gt_box - len(gt_box1)),
                 mode='constant', value=0
             )
 
@@ -1308,10 +1310,6 @@ class AVDS4:
         out_dict['sample_idx'] = combine_first_ax(
             out_dict['sample_idx'], keepdim=False
         )
-        out_dict['num'] = combine_first_ax(
-            out_dict['num'], keepdim=False)
-
-        # out_dict['sample_idx_mask'] = com
 
         return out_dict
 
