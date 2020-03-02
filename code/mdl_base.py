@@ -366,37 +366,6 @@ class AnetSimpleBCEMdlDS4(AnetBaseMdl):
         pass
 
 
-class ConcBase(nn.Module):
-    """
-    Base Model for concatenation
-    """
-
-    def set_args_conc(self):
-        """
-        Conc Type specific args
-        """
-        return
-
-    def conc_encode_simple(self, conc_feats, inp, nfrm, nppf, ncmp):
-        """
-        conc_feats: B x 6 x 5 x 1000 x 6144
-        output: B x 6 x 5 x 1000 x 1
-        """
-        B, ncmp1, nsrl, nprop, vldim = conc_feats.shape
-        assert ncmp1 == ncmp
-        conc_feats_out = self.lin2(conc_feats)
-        conc_feats_temp = conc_feats.view(
-            B, ncmp, nsrl, nfrm,
-            nppf, vldim
-        ).sum(dim=-2)
-        # B x ncmp x nsrl x nfrms x (vldim->1)
-        conc_temp_out = self.lin_tmp(conc_feats_temp)
-        return {
-            'conc_feats_out': conc_feats_out.squeeze(-1),
-            'conc_temp_out': conc_temp_out.squeeze(-1)
-        }
-
-
 def main():
     from _init_stuff import Fpath, Arr, yaml
     from yacs.config import CfgNode as CN

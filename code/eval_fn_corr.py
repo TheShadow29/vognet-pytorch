@@ -269,10 +269,6 @@ class GroundEval_Corr:
         }
         return self.post_proc_final(out_dict)
 
-        # Assume calculating per verb
-        # Loop over the groundtruths
-        # for gt_ind, gt_row in gt_df.iterrows():
-
 
 class GroundEvalDS4_Sep(GroundEval_Corr):
     def after_init(self):
@@ -280,13 +276,12 @@ class GroundEvalDS4_Sep(GroundEval_Corr):
                           'vidf_dict', 'strict_res_dict']
         self.num_sampled_frm = self.cfg.ds.num_sampled_frm
         self.num_prop_per_frm = self.comm.num_prop_per_frm
-        # self.pcs = []
-        # self.stuff = []
 
     def post_proc(self, out_dict):
         key_list = list(out_dict['res_dict'].keys())
         out_dict['strict_res_dict'] = {
-            k: out_dict['res_dict'][k] * (out_dict['cons_dict'][k] > 0)
+            k: (out_dict['res_dict'][k] == out_dict['tot_dict']
+                [k]) * out_dict['tot_dict'][k]
             for k in key_list
         }
         return out_dict
@@ -450,6 +445,7 @@ class GroundEvalDS4_Sep(GroundEval_Corr):
                     targ_cmp, gt_boxes_frms, gt_frames_all,
                     cmp_msk
                 )
+
                 one_srl_out_dict.update({'srl_ind': srl_ind})
                 considered_boxes.append(one_srl_out_dict)
                 iou = one_srl_out_dict['iou']
@@ -459,9 +455,7 @@ class GroundEvalDS4_Sep(GroundEval_Corr):
 
         if gt_row_ind in tot_dict:
             cons_out, vidf_out = self.compute_cons_vidf(considered_boxes)
-            # if cons_out == 0:
-            # import pdb
-            # pdb.set_trace()
+
             cons_dict[gt_row_ind] += tot_dict[gt_row_ind] * cons_out
             vidf_dict[gt_row_ind] += tot_dict[gt_row_ind] * vidf_out
 

@@ -7,7 +7,7 @@ from mdl_base import AnetSimpleBCEMdlDS4
 from mdl_conc import ConcSEP, LossB_DS4
 from mdl_conc_single import (
     ConcTemp, LossB_SSJ1_Temporal_DS4,
-    ConcSPAT, LossB_SSJ1_Spatial_DS4
+    ConcSPAT, LossB_SSJ1_Spatial_DS4,
 )
 from mdl_srl_utils import do_cross
 from transformer_code import Transformer, RelTransformer
@@ -357,6 +357,7 @@ class VOGNet(VidGrnd):
         conc_feats: B x 6 x 5 x 1000 x 6144
         output: B x 6 x 5 x 1000 x 1
         """
+
         B, ncmp1, nsrl, nprop, vldim = conc_feats.shape
         assert ncmp1 == ncmp
         # if self.cfg.mdl.interact.per_frm:

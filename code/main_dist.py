@@ -123,6 +123,20 @@ def main_dist(uid: str, **kwargs):
     # Train or Test
     if not (cfg.only_val or cfg.only_test or cfg.overfit_batch):
         learn.fit(epochs=cfg.train.epochs, lr=cfg.train.lr)
+        if cfg.run_final_val:
+            print('Running Final Validation using best model')
+            learn.load_model_dict(
+                resume_path=learn.model_file,
+                load_opt=False
+            )
+            val_loss, val_acc, _ = learn.validate(
+                db={'valid': learn.data.valid_dl},
+                write_to_file=True
+            )
+            print(val_loss)
+            print(val_acc)
+        else:
+            pass
     else:
         if cfg.overfit_batch:
             learn.overfit_batch(1000, 1e-4)

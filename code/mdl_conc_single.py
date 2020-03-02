@@ -2,10 +2,40 @@
 Concatenate to a Single Video
 """
 import torch
+from torch import nn
 from torch.nn import functional as F
-from mdl_base import AnetSimpleBCEMdlDS4, ConcBase
-from mdl_conc import LossB_DS4
 from box_utils import bbox_overlaps
+
+
+class ConcBase(nn.Module):
+    """
+    Base Model for concatenation
+    """
+
+    def set_args_conc(self):
+        """
+        Conc Type specific args
+        """
+        return
+
+    def conc_encode_simple(self, conc_feats, inp, nfrm, nppf, ncmp):
+        """
+        conc_feats: B x 6 x 5 x 1000 x 6144
+        output: B x 6 x 5 x 1000 x 1
+        """
+        B, ncmp1, nsrl, nprop, vldim = conc_feats.shape
+        assert ncmp1 == ncmp
+        conc_feats_out = self.lin2(conc_feats)
+        conc_feats_temp = conc_feats.view(
+            B, ncmp, nsrl, nfrm,
+            nppf, vldim
+        ).sum(dim=-2)
+        # B x ncmp x nsrl x nfrms x (vldim->1)
+        conc_temp_out = self.lin_tmp(conc_feats_temp)
+        return {
+            'conc_feats_out': conc_feats_out.squeeze(-1),
+            'conc_temp_out': conc_temp_out.squeeze(-1)
+        }
 
 
 class ConcTemp(ConcBase):
@@ -84,7 +114,6 @@ class ConcTemp(ConcBase):
         # B x 40 x 512
         seg_feats = self.seg_feats_encode(inp)
         B, num_v_frms, sdim = seg_feats.shape
-        num_cmp = inp['new_srl_idxs'].size(1)
         # Simple conc seg_feats
         prop_seg_feats = self.concat_prop_seg_feats(
             prop_feats, seg_feats, inp
@@ -104,30 +133,6 @@ class ConcTemp(ConcBase):
         conc_feats_out_dict = self.conc_encode(conc_feats, inp)
         conc_feats_out = conc_feats_out_dict['conc_feats_out']
 
-        verb_feats = lstm_outs['final_hidden']
-        B_num_cmp, ldim = verb_feats.shape
-        # if B_num_cmp == B:
-        verb_feats = verb_feats.view(B, 1, ldim).expand(
-            B, num_cmp, ldim)
-        # else:
-        # verb_feats = verb_feats.view(B, num_cmp, ldim)
-
-        # seg_feats_for_verb = seg_feats.view(
-        #     B, num_cmp, self.num_sampled_frm, sdim).mean(dim=-2).view(
-        #         B, num_cmp, sdim
-        # )
-
-        # # B x num_cmp
-        # vidf_outs = self.compute_seg_verb_feats_out(
-        #     seg_feats_for_verb, verb_feats
-        # )
-
-        # # # B x num_cmp x num_srl_args
-        # prop_scores_max_boxes, _ = torch.max(
-        #     torch.sigmoid(conc_feats_out), dim=-1)
-
-        # # B x num_cmp
-        # fin_scores = prop_scores_max_boxes.sum(dim=-1)
         num_cmp_msk = self.get_num_cmp_msk(inp, conc_feats_out.shape)
         srl_ind_msk = inp['srl_arg_inds_msk'].unsqueeze(-1).expand(
             *conc_feats_out.shape)
@@ -136,7 +141,6 @@ class ConcTemp(ConcBase):
 
         return {
             'mdl_outs': conc_feats_out,
-            # 'vidf_outs': vidf_outs,
             'mdl_outs_eval': conc_feats_out_eval,
         }
 
@@ -191,35 +195,17 @@ class ConcSPAT(ConcTemp):
         return ConcTemp.forward(self, inp)
 
 
-class LossB_SSJ1_Temporal_DS4(LossB_DS4):
-    def after_init(self):
+class LossB_SSJ1_Temporal_DS4(nn.Module):
+    def __init__(self, cfg, comm):
+        super().__init__()
+        self.cfg = cfg
+        self.comm = comm
         self.loss_keys = ['loss', 'mdl_out_loss']
+        self.loss_lambda = self.cfg.loss.loss_lambda
+        self.after_init()
 
-    def compute_overlaps(self, inp):
-
-        pad_props = inp['pad_proposals']
-        gt_bboxs = inp['pad_gt_bboxs']
-        frm_msk = inp['pad_frm_mask']
-        pnt_msk = inp['pad_pnt_mask']
-        # num_cmp = inp['new_srl_idxs'].size(1)
-        # num_cmp_t = inp['num_cmp'][0].item()
-        num_cmp_t = 1
-        try:
-            B = pad_props.size(0)
-            overlaps = bbox_overlaps(
-                pad_props, gt_bboxs,
-                (frm_msk | pnt_msk.unsqueeze(-1))
-            )
-            # overlaps = overlaps.view(B, num_cmp_t, *overlaps.shape[1:])
-
-        except:
-            import pdb
-            pdb.set_trace()
-            overlaps = bbox_overlaps(
-                pad_props, gt_bboxs,
-                (frm_msk | pnt_msk.unsqueeze(-1)))
-
-        return overlaps
+    def after_init(self):
+        pass
 
     def get_targets_from_overlaps(self, overlaps, inp):
         """
@@ -257,6 +243,27 @@ class LossB_SSJ1_Temporal_DS4(LossB_DS4):
 
         return targets_to_use
 
+    def compute_overlaps(self, inp):
+
+        pad_props = inp['pad_proposals']
+        gt_bboxs = inp['pad_gt_bboxs']
+        frm_msk = inp['pad_frm_mask']
+        pnt_msk = inp['pad_pnt_mask']
+
+        try:
+            overlaps = bbox_overlaps(
+                pad_props, gt_bboxs,
+                (frm_msk | pnt_msk.unsqueeze(-1))
+            )
+        except:
+            import pdb
+            pdb.set_trace()
+            overlaps = bbox_overlaps(
+                pad_props, gt_bboxs,
+                (frm_msk | pnt_msk.unsqueeze(-1)))
+
+        return overlaps
+
     def compute_loss_targets(self, inp):
         """
         Compute the targets, based on iou
@@ -268,9 +275,9 @@ class LossB_SSJ1_Temporal_DS4(LossB_DS4):
         assert num_tot_props % num_cmp == 0
         num_props = num_tot_props // num_cmp
         overlaps_msk = overlaps.new_zeros(B, num_cmp, num_props, num_gt)
-        # targ_cmp = inp['target_cmp'][0].item()
+
         targ_cmp = inp['target_cmp']
-        # overlaps_msk[:, targ_cmp, ...] = 1
+
         overlaps_msk.scatter_(
             dim=1,
             index=targ_cmp.view(B, 1, 1, 1).expand(
@@ -278,26 +285,14 @@ class LossB_SSJ1_Temporal_DS4(LossB_DS4):
             src=overlaps_msk.new_ones(*overlaps_msk.shape)
         )
 
-        # overlaps_msk[:, 0, ...] = 1
         overlaps_msk = overlaps_msk.view(B, num_tot_props, num_gt)
         overlaps_one_targ = overlaps * overlaps_msk
         targets_one = self.get_targets_from_overlaps(overlaps_one_targ, inp)
-        # targets_all = self.get_targets_from_overlaps(overlaps, inp)
         return {
             'targets_one': targets_one,
-            # 'targets_all': targets_all
         }
 
     def compute_mdl_loss(self, mdl_outs, targets_one, inp):
-        # B x num_cmp x num_srl_args x  num_props
-        # ps = torch.sigmoid(mdl_outs)
-        # enc_tgt = targets_one.float()
-        # weights = enc_tgt * (1 - ps) + (1 - enc_tgt) * ps
-        # alpha = 0.25
-        # gamma = 2
-        # alphas = ((1 - enc_tgt) * alpha + enc_tgt * (1 - alpha))
-        # weights.pow_(gamma).mul_(alphas)
-        # weights = weights.detach()
         weights = None
         tot_loss = F.binary_cross_entropy_with_logits(
             mdl_outs, target=targets_one.float(),
@@ -310,7 +305,7 @@ class LossB_SSJ1_Temporal_DS4(LossB_DS4):
 
         srl_arg_boxes_mask = inp['srl_arg_boxes_mask']
         B, num_verbs, num_srl_args = srl_arg_boxes_mask.shape
-        # if num_verbs != num_cmp:
+
         boxes_msk = (
             srl_arg_boxes_mask.view(
                 B, num_verbs, num_srl_args, 1).expand(
@@ -329,11 +324,7 @@ class LossB_SSJ1_Temporal_DS4(LossB_DS4):
 
         multiplier = tot_loss.size(-1)
         if srl_arg_boxes_mask.max() > 0:
-            # TODO: Check if mean is correct thing to do here.
-            # out_loss = torch.masked_select(tot_loss, srl_arg_boxes_mask.byte())
             out_loss = torch.masked_select(tot_loss, boxes_msk.byte())
-            # out_loss = torch.masked_select(tot_loss, srl2.byte())
-
         else:
             # TODO: NEED TO check what is wrong here
             out_loss = tot_loss
@@ -341,72 +332,19 @@ class LossB_SSJ1_Temporal_DS4(LossB_DS4):
         # mdl_out_loss = out_loss * 1000
         return mdl_out_loss
 
-    def compute_vidf_loss_simple(self, vidf_outs, inp):
-        """
-        vidf_outs are fin scores: B x ncmp x nfrms
-        """
-        B, ncmp, nfrm = vidf_outs.shape
-        targs = vidf_outs.new_zeros(*vidf_outs.shape)
-        # targ_cmp = inp['target_cmp'][0].item()
-        targ_cmp = inp['target_cmp']
-
-        targs.scatter_(
-            dim=1,
-            index=targ_cmp.view(B, 1, 1).expand(B, ncmp, nfrm),
-            src=targs.new_ones(*targs.shape)
-        )
-        # targs[:, targ_cmp] = 1
-
-        # B x ncmp x nfrms
-        out_loss = F.binary_cross_entropy(vidf_outs, targs, reduction='none')
-        # mult = out_loss.size(-1)
-        mult = 1/nfrm
-        # B x ncmp
-        msk = inp['num_cmp_msk']  #
-        out_loss = torch.masked_select(out_loss.sum(dim=-1) * msk.float(),
-                                       msk.byte()) * mult
-        return out_loss.mean()
-
     def forward(self, out, inp):
         targets_all = self.compute_loss_targets(inp)
-        # targets_one = targets_all['targets_one']
-        # targets_one = targets_all['targets_one']
-        # targets_n = targets_all['targets_all']
         targets_n = targets_all['targets_one']
-        # import pdb
-        # pdb.set_trace()
+
         mdl_outs = out['mdl_outs']
-        # mdl_out_loss = self.compute_mdl_loss(mdl_outs, targets_one, inp)
+
         mdl_out_loss = self.compute_mdl_loss(mdl_outs, targets_n, inp)
 
-        verb_outs = out['vidf_outs']
-
-        verb_loss = F.binary_cross_entropy_with_logits(
-            verb_outs,
-            inp['verb_cmp'].float(),
-            reduction='none'
-        )
-
-        vcc_msk = inp['verb_cross_cmp_msk'].float()
-        vcc_msk = (vcc_msk.sum(dim=-1) > 0).float()
-        verb_loss = verb_loss * vcc_msk
-        verb_loss = torch.masked_select(
-            verb_loss, vcc_msk.byte()).mean()
-
-        # out_loss = mdl_out_loss + verb_loss
         out_loss = mdl_out_loss
 
-        # vidf_loss = mdl_out_loss.new_zeros(mdl_out_loss.shape)
-        # if not self.cfg.mdl.loss.only_vid_loss:
-        # out_loss = mdl_out_loss + verb_loss
-        # out_loss = mdl_out_loss + verb_loss
-        # else:
-        # out_loss = vidf_loss
         out_loss_dict = {
             'loss': out_loss,
             'mdl_out_loss': mdl_out_loss,
-            # 'vidf_loss': vidf_loss,
-            # 'verb_loss': verb_loss
         }
 
         return {k: v * self.loss_lambda for k, v in out_loss_dict.items()}
@@ -428,7 +366,6 @@ class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
         overlaps = self.compute_overlaps(inp)
         B, num_tot_props, num_gt = overlaps.shape
         assert num_tot_props % num_cmp == 0
-        # num_props = num_tot_props // num_cmp
 
         overlaps_msk = overlaps.new_zeros(
             B, self.num_sampled_frm, num_cmp,
@@ -436,7 +373,6 @@ class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
         )
 
         targ_cmp = inp['target_cmp']
-        # overlaps_msk[:, targ_cmp, ...] = 1
         overlaps_msk.scatter_(
             dim=2,
             index=targ_cmp.view(B, 1, 1, 1, 1).expand(
@@ -445,26 +381,14 @@ class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
             src=overlaps_msk.new_ones(*overlaps_msk.shape)
         )
 
-        # overlaps_msk[:, :, 0, ...] = 1
         overlaps_msk = overlaps_msk.view(B, num_tot_props, num_gt)
         overlaps_one_targ = overlaps * overlaps_msk
         targets_one = self.get_targets_from_overlaps(overlaps_one_targ, inp)
-        # targets_all = self.get_targets_from_overlaps(overlaps, inp)
         return {
             'targets_one': targets_one,
-            # 'targets_all': targets_all
         }
 
     def compute_mdl_loss(self, mdl_outs, targets_one, inp):
-        # B x num_cmp x num_srl_args x  num_props
-        # ps = torch.sigmoid(mdl_outs)
-        # enc_tgt = targets_one.float()
-        # weights = enc_tgt * (1 - ps) + (1 - enc_tgt) * ps
-        # alpha = 0.25
-        # gamma = 2
-        # alphas = ((1 - enc_tgt) * alpha + enc_tgt * (1 - alpha))
-        # weights.pow_(gamma).mul_(alphas)
-        # weights = weights.detach()
         weights = None
         tot_loss = F.binary_cross_entropy_with_logits(
             mdl_outs, target=targets_one.float(),
@@ -476,9 +400,9 @@ class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
         B, num_cmp = num_cmp_msk.shape
 
         srl_arg_boxes_mask = inp['srl_arg_boxes_mask']
-        # srl_arg_boxes_mask[...] = 1
+
         B, num_verbs, num_srl_args = srl_arg_boxes_mask.shape
-        # if num_verbs != num_cmp:
+
         boxes_msk = (
             srl_arg_boxes_mask.view(
                 B, num_verbs, num_srl_args, 1).expand(
@@ -489,7 +413,6 @@ class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
         )
 
         num_tot_props = targets_one.size(-1)
-        # num_props_per_vid = num_tot_props // num_cmp
         # B x num_cmp x num_srl_args -> B x num_cmp x num_srl x 4000
         boxes_msk = boxes_msk.view(
             B, num_verbs, num_srl_args, 1, num_cmp, 1
@@ -502,56 +425,27 @@ class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
 
         multiplier = tot_loss.size(-1)
         if srl_arg_boxes_mask.max() > 0:
-            # TODO: Check if mean is correct thing to do here.
-            # out_loss = torch.masked_select(tot_loss, srl_arg_boxes_mask.byte())
             out_loss = torch.masked_select(tot_loss, boxes_msk.byte())
-            # out_loss = torch.masked_select(tot_loss, srl2.byte())
-
         else:
             # TODO: NEED TO check what is wrong here
             out_loss = tot_loss
         mdl_out_loss = out_loss.mean() * multiplier
-        # mdl_out_loss = out_loss * 1000
+
         return mdl_out_loss
 
     def forward(self, out, inp):
         targets_all = self.compute_loss_targets(inp)
-        # targets_one = targets_all['targets_one']
-        # targets_one = targets_all['targets_one']
-        # targets_n = targets_all['targets_all']
         targets_n = targets_all['targets_one']
-        # import pdb
-        # pdb.set_trace()
+
         mdl_outs = out['mdl_outs']
-        # mdl_out_loss = self.compute_mdl_loss(mdl_outs, targets_one, inp)
+
         mdl_out_loss = self.compute_mdl_loss(mdl_outs, targets_n, inp)
 
-        # verb_outs = out['vidf_outs']
-
-        # verb_loss = F.binary_cross_entropy_with_logits(
-        #     verb_outs,
-        #     inp['verb_cmp'].float(),
-        #     reduction='none'
-        # )
-        # vcc_msk = inp['verb_cross_cmp_msk'].float()
-        # vcc_msk = (vcc_msk.sum(dim=-1) > 0).float()
-        # verb_loss = verb_loss * vcc_msk
-        # verb_loss = torch.masked_select(
-        # verb_loss, vcc_msk.byte()
-        # ).mean()
-
-        # vidf_loss = mdl_out_loss.new_zeros(mdl_out_loss.shape)
-        # if not self.cfg.mdl.loss.only_vid_loss:
-        # out_loss = mdl_out_loss + verb_loss
         out_loss = mdl_out_loss
-        # out_loss = mdl_out_loss + verb_loss
-        # else:
-        # out_loss = vidf_loss
+
         out_loss_dict = {
             'loss': out_loss,
             'mdl_out_loss': mdl_out_loss,
-            # 'vidf_loss': vidf_loss,
-            # 'verb_loss': verb_loss
         }
 
         return {k: v * self.loss_lambda for k, v in out_loss_dict.items()}

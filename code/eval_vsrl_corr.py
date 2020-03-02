@@ -10,13 +10,14 @@ from eval_fn_corr import (
 )
 import pickle
 from fastprogress import progress_bar
-
 from pathlib import Path
 import torch
-from trn_utils import (compute_avg_dict,
-                       is_main_process,
-                       synchronize,
-                       get_world_size)
+from trn_utils import (
+    compute_avg_dict,
+    is_main_process,
+    synchronize,
+    get_world_size
+)
 
 
 class Evaluator(torch.nn.Module):
@@ -151,15 +152,12 @@ class Evaluator(torch.nn.Module):
 
 class EvaluatorDS4_Corr_SSJ1_Sep(Evaluator):
     def after_init(self):
-        # self.met_keys = ['avg1', 'macro_avg1', 'avg1_cons', 'macro_avg1_cons']
-        # self.grnd_eval = GroundEvalDS4(self.cfg, self.comm)
 
         self.met_keys = ['avg1', 'avg1_cons',
                          'avg1_vidf', 'avg1_strict']
         self.grnd_eval = GroundEvalDS4_Sep(self.cfg, self.comm)
 
         self.num_sampled_frm = self.num_frms
-        # self.num_prop_per_frm = self.cfg.misc.num_prop_per_frm
 
     def get_out_results_boxes(self, out_result_dict, inp):
         """
@@ -245,9 +243,6 @@ class EvaluatorDS4_Corr_SSJ1_Sep(Evaluator):
         targ_cmp = inp['target_cmp'].detach().cpu().tolist()
         perm_list = inp['permute'].detach().cpu().tolist()
         perm_inv_list = inp['permute_inv'].detach().cpu().tolist()
-        # targ_cmp = inp['target_cmp'][0].item()
-        # perm = inp['permute'][0].detach().cpu().tolist()
-        # perm_inv = inp['permute_inv'][0].detach().cpu().tolist()
 
         out_dict_list = [
             {

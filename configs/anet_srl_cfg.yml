@@ -122,4 +122,5 @@ do_dp: false
 num_gpus: 1
 only_val: false
 only_test: false
+run_final_val: true
 overfit_batch: false
