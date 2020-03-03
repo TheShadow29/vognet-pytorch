@@ -11,17 +11,17 @@ from _init_stuff import Fpath, Arr, yaml
 from yacs.config import CfgNode as CN
 import pandas as pd
 import h5py
-from typing import Tuple
+
 import numpy as np
 import json
 import copy
 from typing import Dict
 from munch import Munch
 from trn_utils import DataWrap
-from torchtext import vocab
+
 import ast
 import pickle
-from ds4_creator import create_similar_list, create_random_list
+from contrastive_sampling import create_similar_list, create_random_list
 from mdl_srl_utils import combine_first_ax
 from trn_utils import get_dataloader
 
@@ -474,75 +474,8 @@ class AnetVerbDataset(AnetEntDataset):
                     lambda x: ast.literal_eval(x))
         return df
 
-    # def after_init(self):
-    #     if self.split_type == 'train':
-    #         self.srl_annots = pd.read_csv(self.cfg.ds.trn_verb_ent_file)
-    #     elif self.split_type == 'valid':
-    #         self.srl_annots = pd.read_csv(self.cfg.ds.val_verb_ent_file)
-
-    #     elif self.split_type == 'test':
-    #         self.srl_annots = pd.read_csv(self.cfg.ds.val_verb_ent_file)
-
-    #     else:
-    #         raise NotImplementedError
-
-    #     assert hasattr(self, 'srl_annots')
-    #     self.srl_annots = self.fix_via_ast(self.srl_annots)
-
-    #     with open(self.cfg.ds.arg_vocab_file, 'rb') as f:
-    #         self.arg_vocab = pickle.load(f)
-
-    #     self.srl_arg_len = self.cfg.misc.srl_arg_length
-    #     self.box_per_srl_arg = self.cfg.misc.box_per_srl_arg
-
-    #     if self.cfg.ds.proc_type == 'one_verb':
-    #         self.itemgetter = getattr(self, 'verb_item_getter')
-    #         self.max_srl_in_sent = 1
-    #     elif self.cfg.ds.proc_type == 'one_sent':
-    #         self.itemgetter = getattr(self, 'sent_item_getter')
-    #         self.srl_annots = list(self.srl_annots.groupby(by=['ann_ind']))
-    #         self.max_srl_in_sent = self.cfg.misc.max_srl_in_sent
-
     def __len__(self):
-        # if self.split_type == 'train':
-        # return 50
         return len(self.srl_annots)
-        # return 50
-
-    # def get_det_word_simple(self, caption, srl_px_to_ix_map, srl_row):
-
-    #     indicator = []
-    #     proc_idxs2 = srl_row.process_idx2
-
-    #     proc_clss2 = srl_row.process_clss
-    #     # category class, binary class, fine-grain class.
-    #     indicator.append([(0, 0, 0)]*len(caption))
-    #     for pind, pidx in enumerate(proc_idxs2):
-    #         for pind2, pidx2 in enumerate(pidx):
-    #             if not isinstance(pidx2, list):  #
-    #                 pidxs3 = [pidx2]
-    #             else:
-    #                 pidxs3 = pidx2
-    #             for pidx3 in pidxs3:
-    #                 if pidx3 in srl_px_to_ix_map:
-    #                     px2 = srl_px_to_ix_map[pidx3]
-    #                     indicator[0][px2] = (
-    #                         self.comm.dtoi[proc_clss2[pind][pind2]], 0, 0)
-
-    #     return indicator
-
-    # def pad_words_with_vocab(self, out_list, vocab=None, pad_len=-1, defm=[1]):
-    #     if pad_len == -1:
-    #         return out_list
-    #     else:
-    #         curr_len = len(out_list)
-    #         if curr_len > pad_len:
-    #             return out_list[:pad_len]
-    #         else:
-    #             if vocab is not None and hasattr(vocab, 'itos'):
-    #                 assert vocab.itos[1] == '<pad>'
-    #             out_list += defm * (pad_len - curr_len)
-    #             return out_list
 
     def pidx2list(self, pidx):
         """
@@ -864,17 +797,13 @@ class AnetVerbDataset(AnetEntDataset):
         srl_row = self.srl_annots.loc[idx]
         out = self.simple_item_getter(srl_row.ann_ind)
         out_dict = self.get_for_one_verb(srl_row, idx, out)
-        # out_dict['srl_verb_idxs'] = torch.tensor(srl_row_indices).long()
         out.update(out_dict)
         return out
 
 
-class AVDS4:
+class AV_CS:
     def __len__(self):
-        # if self.split_type == 'train':
-        # return 50
         return len(self.srl_annots)
-        # return 50
 
     def after_init(self):
         if self.split_type == 'train':
@@ -890,13 +819,7 @@ class AVDS4:
         assert hasattr(self, 'srl_annots')
 
         self.srl_annots = self.fix_via_ast(self.srl_annots)
-        # self.srl_annots = self.srl_annots.loc[[762, 13005]]
-        # self.srl_annots = self.srl_annots.loc[[13098, 460]]
-        # self.srl_annots = self.srl_annots.loc[[959, 14646]]
-        # THIS MAY BE A BUG
-        # import pdb
-        # pdb.set_trace()
-        # self.srl_annots = self.srl_annots[self.srl_annots.ds4_msk != -1]
+
         with open(arg_dict_file) as f:
             self.arg_dicts = json.load(f)
 
@@ -1550,7 +1473,7 @@ class AVDS4:
         return collated_out_dicts
 
 
-class AnetVerbDS4(AVDS4, AnetVerbDataset):
+class Anet_SRL(AV_CS, AnetVerbDataset):
     def __init__(self, cfg: CN, ann_file: Fpath, split_type: str = 'train',
                  comm: Dict = None):
         AnetVerbDataset.__init__(self, cfg, ann_file, split_type, comm)
@@ -1597,7 +1520,7 @@ class BatchCollator:
 def get_data(cfg):
     # Get which dataset to use
     # ds_name = cfg.ds_to_use
-    DS = AnetVerbDS4
+    DS = Anet_SRL
 
     collate_fn = BatchCollator
 

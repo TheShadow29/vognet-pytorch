@@ -3,19 +3,18 @@ Different Models: ImgGrnd, VidGrnd, VOGNet
 """
 import torch
 from torch import nn
-from mdl_base import AnetSimpleBCEMdlDS4
-from mdl_conc import ConcSEP, LossB_DS4
+from mdl_base import AnetSimpleBCEMdl_CS
+from mdl_conc_sep import ConcSEP, LossB_SEP
 from mdl_conc_single import (
-    ConcTemp, LossB_SSJ1_Temporal_DS4,
-    ConcSPAT, LossB_SSJ1_Spatial_DS4,
+    ConcTEMP, LossB_TEMP,
+    ConcSPAT, LossB_SPAT
 )
 from mdl_srl_utils import do_cross
 from transformer_code import Transformer, RelTransformer
 
 
-class ImgGrnd(AnetSimpleBCEMdlDS4):
+class ImgGrnd(AnetSimpleBCEMdl_CS):
     def set_args_mdl(self):
-        # AnetSimpleBCEMdlDS4.set_args(self)
         # proposal dimension
         self.prop_dim = self.cfg.mdl.prop_feat_dim
         # Encoded dimension of the region features
@@ -92,12 +91,31 @@ class ImgGrnd(AnetSimpleBCEMdlDS4):
         """
         return ps_feats
 
+    def conc_encode_simple(self, conc_feats, inp, nfrm, nppf, ncmp):
+        """
+        conc_feats: B x 6 x 5 x 1000 x 6144
+        output: B x 6 x 5 x 1000 x 1
+        """
+        B, ncmp1, nsrl, nprop, vldim = conc_feats.shape
+        assert ncmp1 == ncmp
+        conc_feats_out = self.lin2(conc_feats)
+        conc_feats_temp = conc_feats.view(
+            B, ncmp, nsrl, nfrm,
+            nppf, vldim
+        ).sum(dim=-2)
+        # B x ncmp x nsrl x nfrms x (vldim->1)
+        conc_temp_out = self.lin_tmp(conc_feats_temp)
+        return {
+            'conc_feats_out': conc_feats_out.squeeze(-1),
+            'conc_temp_out': conc_temp_out.squeeze(-1)
+        }
+
 
 class ImgGrnd_SEP(ConcSEP, ImgGrnd):
     pass
 
 
-class ImgGrnd_TEMP(ConcTemp, ImgGrnd):
+class ImgGrnd_TEMP(ConcTEMP, ImgGrnd):
     pass
 
 
@@ -215,7 +233,7 @@ class VidGrnd_SEP(ConcSEP, VidGrnd):
     pass
 
 
-class VidGrnd_TEMP(ConcTemp, VidGrnd):
+class VidGrnd_TEMP(ConcTEMP, VidGrnd):
     pass
 
 
@@ -264,6 +282,14 @@ class VOGNet(VidGrnd):
                 nn.ReLU(),
             ]
         )
+
+    def simple_obj_interact(self, ps_feats, inp, ncmp, nfrm, nppf):
+        if self.cfg.mdl.obj_tx.to_use:
+            return VidGrnd.simple_obj_interact(
+                self, ps_feats, inp, ncmp, nfrm, nppf
+            )
+        else:
+            return ps_feats
 
     def conc_encode_sa(self, conc_feats, inp, nfrm, nppf, ncmp):
         def unpack(inp_t):
@@ -408,12 +434,10 @@ class VOGNet(VidGrnd):
             conc_feats = conc_feats_sa.view(
                 B, ncmp, nsrl, nprop, vldim
             ).contiguous()
-            # conc_feats_out = self.lin2(conc_feats).squeeze(-1)
         else:
             conc_feats = conc_feats_sa.view(
                 B, ncmp, nsrl, nprop, vldim
             ).contiguous()
-            # conc_feats_out = self.lin2(conc_feats).squeeze(-1)
         return {
             'conc_feats_out': conc_feats,
         }
@@ -423,7 +447,7 @@ class VOG_SEP(ConcSEP, VOGNet):
     pass
 
 
-class VOG_TEMP(ConcTemp, VOGNet):
+class VOG_TEMP(ConcTEMP, VOGNet):
     pass
 
 

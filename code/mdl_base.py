@@ -1,6 +1,7 @@
 """
 Base Model and Loss
 Other models build on top of this.
+Basically, have all the required args here.
 """
 import torch
 from torch import nn
@@ -68,7 +69,12 @@ class AnetBaseMdl(nn.Module):
         self.srl_arg_len = self.cfg.misc.srl_arg_length
 
 
-class AnetSimpleBCEMdlDS4(AnetBaseMdl):
+class AnetSimpleBCEMdl_CS(AnetBaseMdl):
+    """
+    Mainly contains the language stuff which
+    is needed by other modules
+    """
+
     def set_args(self):
         AnetBaseMdl.set_args(self)
         self.set_args_mdl()
@@ -128,7 +134,8 @@ class AnetSimpleBCEMdlDS4(AnetBaseMdl):
         """
         lstm_encoding: B*6 x 40 x 2048
         output: B*6 x 5 x 4096
-        Basically, given the lstm inputs, want to separate out just
+        Basically, given the lstm inputs,
+        want to separate out just
         the argument parts
         """
         def gather_from_index(inp1, dim1, index1):
@@ -157,7 +164,8 @@ class AnetSimpleBCEMdlDS4(AnetBaseMdl):
             B, num_verbs, num_srl_args, -1)
 
         out_srl_words_encoded = self.srl_arg_words_out_enc(
-            out_srl_words_encoded)
+            out_srl_words_encoded
+        )
 
         # zero out which are not arg words
         # B x num_cmp x num_srl_args
@@ -316,7 +324,6 @@ class AnetSimpleBCEMdlDS4(AnetBaseMdl):
         """
         Convenience function to make lesser
         clusterfuck.
-        AI is IF-ELSE statements :)
         """
         B, num_verbs, num_srl_args, seq_len = inp['srl_arg_words_ind'].shape
         # num_cmp = seg_feats.size(1)
@@ -373,7 +380,7 @@ def main():
     cfg = CN(yaml.safe_load(open('./configs/anet_srl_cfg.yml')))
     data = get_data(cfg)
     comm = data.train_dl.dataset.comm
-    mdl = AnetSimpleBCEMdlDS4(cfg, comm)
+    mdl = AnetSimpleBCEMdl_CS(cfg, comm)
     return mdl
 
 

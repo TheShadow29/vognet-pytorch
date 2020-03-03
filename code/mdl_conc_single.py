@@ -18,27 +18,8 @@ class ConcBase(nn.Module):
         """
         return
 
-    def conc_encode_simple(self, conc_feats, inp, nfrm, nppf, ncmp):
-        """
-        conc_feats: B x 6 x 5 x 1000 x 6144
-        output: B x 6 x 5 x 1000 x 1
-        """
-        B, ncmp1, nsrl, nprop, vldim = conc_feats.shape
-        assert ncmp1 == ncmp
-        conc_feats_out = self.lin2(conc_feats)
-        conc_feats_temp = conc_feats.view(
-            B, ncmp, nsrl, nfrm,
-            nppf, vldim
-        ).sum(dim=-2)
-        # B x ncmp x nsrl x nfrms x (vldim->1)
-        conc_temp_out = self.lin_tmp(conc_feats_temp)
-        return {
-            'conc_feats_out': conc_feats_out.squeeze(-1),
-            'conc_temp_out': conc_temp_out.squeeze(-1)
-        }
 
-
-class ConcTemp(ConcBase):
+class ConcTEMP(ConcBase):
     def conc_encode(self, conc_feats, inp):
         ncmp = inp['new_srl_idxs'].size(1)
         nfrm = ncmp * self.num_sampled_frm
@@ -145,7 +126,7 @@ class ConcTemp(ConcBase):
         }
 
 
-class ConcSPAT(ConcTemp):
+class ConcSPAT(ConcTEMP):
     def conc_encode(self, conc_feats, inp):
         ncmp = inp['new_srl_idxs'].size(1)
         nfrm = self.num_sampled_frm
@@ -195,7 +176,7 @@ class ConcSPAT(ConcTemp):
         return ConcTemp.forward(self, inp)
 
 
-class LossB_SSJ1_Temporal_DS4(nn.Module):
+class LossB_TEMP(nn.Module):
     def __init__(self, cfg, comm):
         super().__init__()
         self.cfg = cfg
@@ -350,7 +331,7 @@ class LossB_SSJ1_Temporal_DS4(nn.Module):
         return {k: v * self.loss_lambda for k, v in out_loss_dict.items()}
 
 
-class LossB_SSJ1_Spatial_DS4(LossB_SSJ1_Temporal_DS4):
+class LossB_SPAT(LossB_TEMP):
     def after_init(self):
         self.loss_keys = ['loss', 'mdl_out_loss']
 

@@ -114,7 +114,7 @@ anet_verb/
 1. Do Constrastive sampling for train and validation set (~30mins)
 ```
 cd $ROOT
-python code/ds4_creator.py
+python code/contrastive_sampling.py
 ```
 
 Now your `anet_verb` directory should look like:

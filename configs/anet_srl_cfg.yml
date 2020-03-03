@@ -62,12 +62,14 @@ mdl:
     seg_encode_size: 256
     lang_encode_size: 256
   obj_tx:
+    to_use: true
     n_layers: 1
     n_heads: 3
     attn_drop: 0.2
     use_rel: false
     one_frm: false
   mul_tx:
+    to_use: true
     n_layers: 1
     n_heads: 3
     attn_drop: 0.2

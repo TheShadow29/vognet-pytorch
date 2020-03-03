@@ -2,14 +2,11 @@
 Take care of SEP case.
 
 """
-from mdl_base import AnetSimpleBCEMdlDS4
 from mdl_conc_single import ConcBase
-
 import torch
 from torch import nn
-from dat_loader import get_data
 from torch.nn import functional as F
-from mdl_srl_utils import do_cross, combine_first_ax
+from mdl_srl_utils import combine_first_ax
 from box_utils import bbox_overlaps
 
 
@@ -220,10 +217,12 @@ class ConcSEP(ConcBase):
         }
 
 
-class LossB_DS4(nn.Module):
+class LossB_SEP(nn.Module):
     """
-    Current DS4 model naive:
-    Basically, if not correct, give score of 0
+    Loss Function (for a batch) for SEP case.
+    Specifically, we need to have a separate verb loss
+    Also, handling of some functions is different
+    from single video case
     """
 
     def __init__(self, cfg, comm):
@@ -242,7 +241,6 @@ class LossB_DS4(nn.Module):
         Use the given overlaps to produce the targets
         overlaps: B x num_cmp x 1000 x 100
         """
-        # to_consider = overlaps > 0.5
         targets = overlaps
 
         srl_boxes = inp['srl_boxes']
