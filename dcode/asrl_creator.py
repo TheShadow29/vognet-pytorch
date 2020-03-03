@@ -274,7 +274,7 @@ class BaseVis:
         return [len(x.unique()) for x in self.svo_stats]
 
 
-class AnetVis(BaseVis):
+class Anet_SRL_Create(BaseVis):
     """
     Helper class for visualization
     """
@@ -513,7 +513,7 @@ class AnetVis(BaseVis):
 
 if __name__ == '__main__':
     cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
-    anet_vis = AnetVis(cfg)
-    anet_vis.load_srl_annots()
-    anet_vis.append_bbox_asrl()
-    anet_vis.save_trn_ent_file()
+    anet_srl = Anet_SRL_Create(cfg)
+    anet_srl.load_srl_annots()
+    anet_srl.append_bbox_asrl()
+    anet_srl.save_trn_ent_file()
