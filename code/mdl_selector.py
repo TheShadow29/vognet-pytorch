@@ -46,7 +46,7 @@ def get_mdl_loss_eval(cfg):
             mdl = VOG_TEMP
         else:
             raise NotImplementedError
-        loss = LossB_TEMP,
+        loss = LossB_TEMP
         evl = EvaluatorDS4_Corr_SSJ1_Temporal
     elif conc_type == 'spat':
         if mdl_type == 'igrnd':

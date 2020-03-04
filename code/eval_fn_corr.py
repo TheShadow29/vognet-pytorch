@@ -774,12 +774,14 @@ def main(pred_file, split_type='valid', **kwargs):
         raise NotImplementedError
 
     conc_type = cfg.ds.conc_type
-    if conc_type == 'sep':
+    if conc_type == 'sep' or conc_type == 'svsq':
         grnd_eval = GroundEvalDS4_Sep(cfg, comm)
     elif conc_type == 'temp':
         grnd_eval = GroundEvalDS4_Temporal(cfg, comm)
     elif conc_type == 'spat':
         grnd_eval = GroundEvalDS4_Spatial(cfg, comm)
+    else:
+        raise NotImplementedError
     out = grnd_eval.eval_ground_acc(pred_file, split_type=split_type)
     # to_print = ['avg1', 'avg2']
     # print(Counter(grnd_eval.pcs))
@@ -788,8 +790,8 @@ def main(pred_file, split_type='valid', **kwargs):
     print({k: out[k] for k in met_keys})
     # print(Counter(grnd_eval.stuff))
     # return out
-    return out
+    return
 
 
 if __name__ == '__main__':
-    out = fire.Fire(main)
+    fire.Fire(main)

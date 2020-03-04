@@ -13,11 +13,12 @@ import os
 import sys
 import yaml
 import re
-
+import pandas as pd
 
 Fpath = Union[Path, str]
 Cft = CN
 Arr = Union[np.array, List, torch.tensor]
+DF = pd.DataFrame
 # Ds = Dataset
 
 # This is required to read 5e-4 as a float rather than string

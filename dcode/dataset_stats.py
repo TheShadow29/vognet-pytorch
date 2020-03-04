@@ -206,7 +206,6 @@ class AnetSRL_Vis(object):
 
 
 if __name__ == '__main__':
-    # cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
     cfg = CN(yaml.safe_load(open('./configs/anet_srl_cfg.yml')))
     asrl_vis = AnetSRL_Vis(cfg)
     asrl_vis.print_all_stats()

@@ -156,8 +156,8 @@ def main_dist(uid: str, **kwargs):
             print(test_loss)
             print(test_acc)
 
-    return learn
+    return
 
 
 if __name__ == '__main__':
-    learn = fire.Fire(main_dist)
+    fire.Fire(main_dist)

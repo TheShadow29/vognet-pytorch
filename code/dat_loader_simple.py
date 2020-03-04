@@ -7,7 +7,7 @@ from torch.utils.data.distributed import DistributedSampler
 import torch
 from torch.nn import functional as F
 from pathlib import Path
-from _init_stuff import Fpath, Arr, yaml
+from _init_stuff import Fpath, Arr, yaml, DF
 from yacs.config import CfgNode as CN
 import pandas as pd
 import h5py
@@ -71,8 +71,6 @@ class AnetEntDataset(Dataset):
         """
         Define the arguments to be used from the cfg
         """
-        # self.use_gt_prop = self.cfg.ds.use_gt_prop
-
         # NOTE: These are changed at extended_config/post_proc_config
         dct = self.cfg.ds[f'{self.cfg.ds.exp_setting}']
         self.proposal_h5 = Path(dct['proposal_h5'])
@@ -353,9 +351,6 @@ class AnetEntDataset(Dataset):
         vid_seg_id = row['id']
         ix = row['Index']
 
-        # num_segs = self.annots[self.annots.vid_id == vid_id].seg_id.max()
-        # num_segs = row['num_segs']
-
         # Get the padded proposals, proposal masks and the number of proposals
         padded_props, pad_pnt_mask, num_props = self.get_props(ix)
 
@@ -376,7 +371,8 @@ class AnetEntDataset(Dataset):
         # Get the number of frames in the segment
         num_frm = seg_feature_raw.shape[0]
 
-        # basically time stamps
+        # basically time stamps.
+        # Not really used, kept for legacy reasons
         sample_idx = np.array(
             [
                 np.round(num_frm*timestamps[0]*1./dur),
@@ -392,81 +388,94 @@ class AnetEntDataset(Dataset):
         seg_feature[:min(self.t_attn_size, num_frm)
                     ] = seg_feature_raw[:self.t_attn_size]
 
+        # gives both local and global features.
+        # In model can choose either one
         seg_feature_for_frms, seg_feature_for_frms_glob = (
             self.get_seg_feat_for_frms(
                 seg_feature_raw, timestamps, dur, idx)
         )
+
         # get gt annotations
-        # Get the act ent annotations
+        # Get the a AE annotations
         caption_dct = self.anet_ent_captions[vid_id]['segments'][seg_id]
 
+        # get the groundtruth_box annotations
         gt_annot_dict = self.get_gt_annots(caption_dct, idx)
-
+        # extract the padded gt boxes
         pad_gt_bboxs = gt_annot_dict['padded_gt_bboxs']
+        # store the number of gt boxes
         num_box = gt_annot_dict['num_box']
 
+        # frame mask is NxM matrix of which proposals
+        # lie in the same frame of groundtruth
         frm_mask = self.get_frm_mask(
             padded_props[:num_props, 4], pad_gt_bboxs[:num_box, 4]
         )
+        # pad it
         pad_frm_mask = np.ones((self.max_proposals, self.max_gt_box))
         pad_frm_mask[:num_props, :num_box] = frm_mask
 
-        # 0 - number of captions
-        # 1 - number of proposals
-        # 2 - number of boxes
-        # 3 - segment id
-        # 4 - number of segments
-        # 5 - start time stamp
-        # 6 - end time stamp
-        # num = torch.FloatTensor(
-        #     [ncap, num_props, num_box, int(seg_id),
-        #      # max(self.num_seg_per_vid[vid_id]
-        #      # )+1,
-        #      num_segs,
-        #      timestamps[0]*1./dur,
-        #      timestamps[1]*1./dur]
-        # )  # 3 + 4 (seg_id, num_of_seg_in_video, seg_start_time, seg_end_time)
-
         pad_pnt_mask = torch.tensor(pad_pnt_mask).long()
-        # pnt_mask2 = torch.cat(
-        #     (pad_pnt_mask.new(1).fill_(0),
-        #      pad_pnt_mask),
-        #     dim=0
-        # )
 
+        # pad region features
         pad_region_feature = np.zeros(
             (self.max_proposals, region_feature.shape[1]))
         pad_region_feature[:num_props] = region_feature[:num_props]
 
         out_dict = {
+            # segment features
             'seg_feature': torch.from_numpy(seg_feature).float(),
+            # local segment features
             'seg_feature_for_frms': torch.from_numpy(
                 seg_feature_for_frms).float(),
+            # global segment features
             'seg_feature_for_frms_glob': torch.from_numpy(
                 seg_feature_for_frms_glob).float(),
-            # 'num': num,
-            # 'seq_len': torch.tensor(gt_annot_dict['seq_len']).long(),
+            # number of proposals
             'num_props': torch.tensor(num_props).long(),
+            # number of groundtruth boxes
             'num_box': torch.tensor(num_box).long(),
+            # padded proposals
             'pad_proposals': torch.tensor(padded_props).float(),
+            # padded groundtruth boxes
             'pad_gt_bboxs': torch.tensor(pad_gt_bboxs).float(),
+            # padded groundtruth mask, not used, kept for legacy
             'pad_gt_box_mask': torch.tensor(
                 gt_annot_dict['padded_gt_box_mask']).byte(),
+            # segment id, not used, kept for legacy
             'seg_id': torch.tensor(int(seg_id)).long(),
+            # idx, ann_idx are same correspond to
+            # it is the index of vid_seg in the ann_file
             'idx': torch.tensor(idx).long(),
             'ann_idx': torch.tensor(idx).long(),
+            # padded region features
             'pad_region_feature': torch.tensor(pad_region_feature).float(),
+            # padded frame mask
             'pad_frm_mask': torch.tensor(pad_frm_mask).byte(),
-            'sample_idx': torch.tensor(sample_idx).long(),
+            # padded proposal mask
             'pad_pnt_mask': pad_pnt_mask.byte(),
-            # 'pad_pnt_mask2': pnt_mask2.byte(),
+            # sample number, not used, legacy
+            'sample_idx': torch.tensor(sample_idx).long(),
         }
 
         return out_dict
 
 
 class AnetVerbDataset(AnetEntDataset):
-    def fix_via_ast(self, df):
+    """
+    The basic ASRL dataset.
+    All outputs for one query
+    """
+
+    def fix_via_ast(self, df: DF):
+        """
+        ASRL csv has columns containing list
+        which are read as strings.
+        so [1,2] is read as "[1,2]"
+        This is fixed using ast.literal_eval
+        which would convert the string to a list/dict
+        depending on the input
+        """
         for k in df.columns:
             first_word = df.iloc[0][k]
             if isinstance(first_word, str) and (first_word[0] in '[{'):
@@ -480,6 +489,9 @@ class AnetVerbDataset(AnetEntDataset):
     def pidx2list(self, pidx):
         """
         Converts process_idx2 to single list
+        Just a convenience function required
+        because some places it is list,
+        some places it isn't
         """
         lst = []
         for p1 in pidx:
@@ -499,6 +511,10 @@ class AnetVerbDataset(AnetEntDataset):
         1. tags
         2. args with st, end ixs
         3. box ind matching
+
+        This is a pretty detailed function, and
+        really requires patience to understand.
+        I know I know. Forgive me.
         """
         srl_row = copy.deepcopy(srl_row)
 
@@ -527,18 +543,31 @@ class AnetVerbDataset(AnetEntDataset):
             return self.pad_words_with_vocab(out_list,
                                              voc, pad_len=pad_len), curr_len
 
+        # srl args to worry about
         vis_set = self.cfg.ds.include_srl_args
+
         # want to get the arguments and the word indices
+        # req_pat_ix: [['ARG0', [0,1,2,3]], ...]
+        # srl_args = ['ARG0', 'V', ...]
+        # srl_words_inds = [[0,1,2,3], ...]
         srl_args, srl_words_inds = [list(t) for t in zip(*srl_row.req_pat_ix)]
+
+        # simple mask to care only about those in srl_set
+        # also pad them
         srl_args_visual_msk = self.pad_words_with_vocab(
             [s in vis_set for s in srl_args],
-            pad_len=self.srl_arg_len, defm=[0])
+            pad_len=self.srl_arg_len, defm=[0]
+        )
+
         # get the words from their indices
+        # convert to words
+        # if original sentence is 'A child playing tennis'
+        # [[0,1], ...] -> [['A', 'child'],...]
         srl_arg_words = [[srl_row.words[ix]
                           for ix in y] for y in srl_words_inds]
 
         # Tags are converted via tag vocab
-        # seq_len, len
+        # not used, kept for legacy
         tag_seq = [srl_row.tags[ix] for y in srl_words_inds for ix in y]
         tag_word_ind, _ = word_to_int_vocab(
             # srl_row.tags,
@@ -549,27 +578,33 @@ class AnetVerbDataset(AnetEntDataset):
 
         # Argument Names (ARG0/V/) are  converted to indices
         # Max num of arguments is kept to be self.srl_arg_len
-
+        # very few cases
         assert 'V' in srl_args
         verb_ind_in_srl = srl_args.index('V')
         if not verb_ind_in_srl <= self.srl_arg_len - 1:
             verb_ind_in_srl = 0
 
+        # Use the argument vocab created earlier
+        # convert the arguments to indices using the vocab
         srl_arg_inds, srl_arg_len = word_to_int_vocab(
             srl_args, self.arg_vocab['arg_vocab'],
             pad_len=self.srl_arg_len
         )
+
         if srl_arg_len > self.srl_arg_len:
             srl_arg_len = self.srl_arg_len
+
         # defm: is the default matrix to be used
         defm = tuple([[1] * self.seq_length, 0])
         # convert the words to their indices using the vocab
         # for every argument
+        # the vocab here is self.comm.wtoi obtained from AE
         srl_arg_words_ind_length = self.pad_words_with_vocab(
             [word_to_int_vocab(
                 srl_arg_w, self.comm.wtoi, pad_len=self.seq_length) for
                 srl_arg_w in srl_arg_words],
-            pad_len=self.srl_arg_len, defm=[defm])
+            pad_len=self.srl_arg_len, defm=[defm]
+        )
 
         # Unzip to get the word indices and their lengths for
         # each argument separately
@@ -584,6 +619,7 @@ class AnetVerbDataset(AnetEntDataset):
         # [1] 0,1 -> 40, 41
         # and so on
         # Finally, use this with index_select
+        # in the mdl part
         srl_arg_word_list = [
             torch.arange(0+st, 0+st+wlen)
             for st, wlen in zip(
@@ -608,6 +644,7 @@ class AnetVerbDataset(AnetEntDataset):
             0] + torch.cumsum(
                 torch.tensor(srl_arg_words_length),
                 dim=0).tolist()
+
         srl_arg_words_capture = [
             (min(x, self.seq_length-1), min(y-1, self.seq_length-1))
             if wlen > 0 else (0, 0)
@@ -694,10 +731,6 @@ class AnetVerbDataset(AnetEntDataset):
         srl_arg_boxes_indicator = self.pad_words_with_vocab(
             srl_arg_box_indicator, pad_len=self.srl_arg_len, defm=[0])
 
-        # if not torch.all(torch.tensor(srl_boxes).long() < self.box_per_srl_arg):
-        #     import pdb
-        #     pdb.set_trace()
-        #     pass
         out_dict = {
             # Tags are indexed (B-V -> 4)
             'srl_tag_word_ind': torch.tensor(tag_word_ind).long(),
@@ -748,6 +781,10 @@ class AnetVerbDataset(AnetEntDataset):
         return out_dict
 
     def collate_dict_list(self, dict_list, pad_len=None):
+        """
+        Convert List[Dict[key, val]] -> Dict[key, List[val]]
+        Also, pad so that can obtain Dict[key, tensor]
+        """
         out_dict = {}
         keys = list(dict_list[0].keys())
         num_dl = len(dict_list)
@@ -764,6 +801,9 @@ class AnetVerbDataset(AnetEntDataset):
     def sent_item_getter(self, idx):
         """
         get vidseg at a time, multiple verbs
+        Basically, input is a vid_seg, which may contain
+        multiple verbs.
+        No longer used, kept for legacy
         """
 
         ann_ind, srl_rows = self.srl_annots[idx]
@@ -782,6 +822,9 @@ class AnetVerbDataset(AnetEntDataset):
         return out
 
     def get_for_one_verb(self, srl_row, idx, out=None):
+        """
+        One ASRL index, not used, kept for legacy
+        """
         out_dict_list = [self.get_srl_anns(srl_row, out)]
         out_dict, num_verbs = self.collate_dict_list(out_dict_list)
         out_dict['num_verbs'] = torch.tensor(num_verbs).long()
@@ -793,6 +836,7 @@ class AnetVerbDataset(AnetEntDataset):
     def verb_item_getter(self, idx):
         """
         get verb items, one at a time
+        kept for legacy
         """
         srl_row = self.srl_annots.loc[idx]
         out = self.simple_item_getter(srl_row.ann_ind)
@@ -802,10 +846,21 @@ class AnetVerbDataset(AnetEntDataset):
 
 
 class AV_CS:
+    """
+    Basically performs CS with SEP/TEMP/SPAT
+    It is kept as a separate class
+    This allows for modularity, and one could replace
+    the parent dataset class for a different dataset
+    """
+
     def __len__(self):
         return len(self.srl_annots)
 
     def after_init(self):
+        """
+        Select the SRL annotation file to choose
+        As well as the dictionary for CS
+        """
         if self.split_type == 'train':
             srl_annot_file = self.cfg.ds.trn_ds4_inds
             arg_dict_file = self.cfg.ds.trn_ds4_dicts
@@ -815,124 +870,164 @@ class AV_CS:
         else:
             raise NotImplementedError
 
+        # Read the file
         self.srl_annots = pd.read_csv(srl_annot_file)
         assert hasattr(self, 'srl_annots')
 
+        # Convert columns to List/Dict
         self.srl_annots = self.fix_via_ast(self.srl_annots)
 
+        # Open the arg dict for CS
         with open(arg_dict_file) as f:
             self.arg_dicts = json.load(f)
 
+        # for now, we only consider the case
+        # with one verb at a time
         self.max_srl_in_sent = 1
 
+        # In training allow, for CS, Random
+        # or CS+Random
+        # The last one doesn't make sense in Val/Test
         if self.split_type == 'train':
-            self.ds4_sample = self.cfg.ds.trn_sample
-            assert self.ds4_sample in set(['ds4', 'random', 'ds4_random'])
+            self.sample_type = self.cfg.ds.trn_sample
+            assert self.sample_type in set(['ds4', 'random', 'ds4_random'])
         elif self.split_type == 'valid' or self.split_type == 'test':
-            self.ds4_sample = self.cfg.ds.val_sample
-            assert self.ds4_sample in set(['ds4', 'random'])
+            self.sample_type = self.cfg.ds.val_sample
+            assert self.sample_type in set(['ds4', 'random'])
         else:
             raise NotImplementedError
 
-        if self.ds4_sample == 'random':
+        # Use sample type to decide which functions to use
+        if self.sample_type == 'random':
             self.more_idx_collector = getattr(self, 'get_random_more_idx')
-        elif self.ds4_sample == 'ds4':
-            self.more_idx_collector = getattr(self, 'get_more_idxs')
-        elif self.ds4_sample == 'ds4_random':
+        elif self.sample_type == 'ds4':
+            self.more_idx_collector = getattr(self, 'get_cs_more_idxs')
+        elif self.sample_type == 'ds4_random':
             self.more_idx_collector = getattr(
-                self, 'get_ds4_and_random_more_idx')
+                self, 'get_cs_and_random_more_idx')
         else:
             raise NotImplementedError
 
+        # Number of Videos to Use for CS
         if self.split_type == 'train':
-            ds4_sigm_num_inp = self.cfg.ds.trn_num_vid_sample
+            nvids_sample = self.cfg.ds.trn_num_vid_sample
         elif self.split_type in set(['valid', 'test']):
-            ds4_sigm_num_inp = self.cfg.ds.val_num_vid_sample
+            nvids_sample = self.cfg.ds.val_num_vid_sample
         else:
             raise NotImplementedError
 
-        self.ds4_inp_len = ds4_sigm_num_inp
+        # set number of videos to use
+        self.cs_nvids_sample = nvids_sample
+        # itemcollector basically collects
+        # nvid samples
         self.itemcollector = getattr(
-            self, 'verb_item_getter_ds4_sigmoid_single'
+            self, 'verb_item_getter_nvid'
         )
 
+        # depending on conc_type choose the
+        # __getitem__ function
+        # append_everywhere is only used for SEP
+        # which appends the lang stuff to each sample
+        # this makes the code cleaner
+        # if svsq, then do same as sep,
+        # and set nvids_sample = 1
         if self.cfg.ds.conc_type == 'spat':
             self.itemgetter = getattr(
-                self, 'verb_item_getter_ds4_screen_spatial')
+                self, 'verb_item_getter_SPAT')
             self.append_everywhere = False
         elif self.cfg.ds.conc_type == 'temp':
             self.itemgetter = getattr(
-                self, 'verb_item_getter_ds4_screen_temporal')
+                self, 'verb_item_getter_TEMP')
             self.append_everywhere = False
         elif self.cfg.ds.conc_type == 'sep':
             self.itemgetter = getattr(
-                self, 'verb_item_getter_screen_sep')
+                self, 'verb_item_getter_SEP')
             self.append_everywhere = True
         elif self.cfg.ds.conc_type == 'svsq':
             self.itemgetter = getattr(
-                self, 'verb_item_getter_screen_sep')
+                self, 'verb_item_getter_SEP')
             self.append_everywhere = True
-            self.ds4_inp_len = 1
+            self.cs_nvids_sample = 1
         else:
             raise NotImplementedError
 
         # Whether to shuffle among the four screens
+        # Has to be True. Keep false only for debugging
         self.ds4_shuffle = self.cfg.ds.cs_shuffle
 
+        # open the vocab files for args
         with open(self.cfg.ds.arg_vocab_file, 'rb') as f:
             self.arg_vocab = pickle.load(f)
 
+        # set the max number of SRLs
+        # ARG0, V, ARG1 => 3 SRLs
         self.srl_arg_len = self.cfg.misc.srl_arg_length
+        # set the max number of boxes for each SRL
+        # ARG0: four people => 4 boxes
         self.box_per_srl_arg = self.cfg.misc.box_per_srl_arg
 
-    def get_ds4_and_random_more_idx(self, idx):
+    def get_cs_and_random_more_idx(self, idx):
         """
         Either choose at random or
-        choose via CS
+        choose via CS with uniform probability
         """
         if np.random.random() < 0.5:
             return self.get_random_more_idx(idx)
         else:
-            return self.get_more_idxs(idx)
+            return self.get_cs_more_idxs(idx)
 
     def get_random_more_idx(self, idx):
         """
-        Returns set of random ds4 idxs
+        Returns set of random idxs
         """
         if self.split_type == 'train':
-            more_idxs, _ = create_random_list(self.cfg,
-                                              self.srl_annots, idx)
+            # for train, generate this list at runtime
+            more_idxs, _ = create_random_list(
+                self.cfg,
+                self.srl_annots,
+                idx
+            )
+            if len(more_idxs) > self.cs_nvids_sample - 1:
+                more_idxs_new_keys = np.random.choice(
+                    list(more_idxs.keys()),
+                    min(len(more_idxs), self.cs_nvids_sample-1),
+                    replace=False
+                )
+                more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
+
         elif self.split_type == 'valid' or self.split_type == 'test':
+            # for valid/test use pre-generated ones
             # obtain predefined idxs
             more_idxs = self.srl_annots.RandDS4_Inds.loc[idx]
+            if len(more_idxs) > self.cs_nvids_sample - 1:
+                more_idxs_new_keys = list(more_idxs.keys())[:min(
+                    len(more_idxs), self.cs_nvids_sample-1)]
+                more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
 
-        if len(more_idxs) > self.ds4_inp_len - 1:
-            more_idxs_new_keys = np.random.choice(
-                list(more_idxs.keys()),
-                min(len(more_idxs), self.ds4_inp_len-1),
-                replace=False
-            )
-            more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
         return more_idxs
 
-    def get_more_idxs(self, idx):
+    def get_cs_more_idxs(self, idx):
         """
-        Returns the set of ds4 idxs to consider
+        Returns the set of idxs for contrastive_sampling
         """
         if self.split_type == 'train':
             more_idxs, _ = create_similar_list(self.cfg, self.arg_dicts,
                                                self.srl_annots, idx)
+            if len(more_idxs) > self.cs_nvids_sample - 1:
+                more_idxs_new_keys = np.random.choice(
+                    list(more_idxs.keys()),
+                    min(len(more_idxs), self.cs_nvids_sample-1),
+                    replace=False
+                )
+                more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
+
         elif self.split_type == 'valid' or self.split_type == 'test':
             # obtain predefined idxs
             more_idxs = self.srl_annots.DS4_Inds.loc[idx]
-
-        if len(more_idxs) > self.ds4_inp_len - 1:
-            more_idxs_new_keys = np.random.choice(
-                list(more_idxs.keys()),
-                min(len(more_idxs), self.ds4_inp_len-1),
-                replace=False
-            )
-            more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
+            if len(more_idxs) > self.cs_nvids_sample - 1:
+                more_idxs_new_keys = list(more_idxs.keys())[:min(
+                    len(more_idxs), self.cs_nvids_sample-1)]
+                more_idxs = {k: more_idxs[k] for k in more_idxs_new_keys}
 
         return more_idxs
 
@@ -948,9 +1043,9 @@ class AV_CS:
         out.update(out_dict)
         return out
 
-    def verb_item_getter_ds4_screen_spatial(self, idx):
+    def verb_item_getter_SPAT(self, idx):
         """
-        Use DS4 Indices.
+        Use Sampled Indices.
         The output is such that we have
         four screens which being played at
         the same time. The goal is to choose
@@ -968,13 +1063,12 @@ class AV_CS:
         This is to get away from the problem of
         no prediction score for the whole
         video is generated by the model.
-
-        An alternative is to have scores
-        using BCE loss which makes the boxes independent.
-        This function implements the former.
-        See verb_item_getter_ds4_sigmoid for the latter
         """
         def reshuffle_boxes(inp_t):
+            """
+            input would have nvids x nfrms x nppf
+            change it to nfrms x nvids x nppf
+            """
             n = inp_t.size(0)
             inp_t = inp_t.view(
                 n, self.num_frms, self.num_prop_per_frm, *inp_t.shape[2:]
@@ -989,7 +1083,8 @@ class AV_CS:
         ):
             """
             props: n x 1000 x 7
-            NOTE: may need to resize
+            NOTE: assumes props are already resized
+            with width=720 and const height (405)
             """
             n, num_props, pdim = props.shape
             delta = torch.arange(n) * shift
@@ -1039,6 +1134,7 @@ class AV_CS:
 
             return out
 
+        # get sampled vids
         out_dict = self.itemcollector(idx)
         num_cmp = len(out_dict['new_srl_idxs'])
 
@@ -1047,16 +1143,18 @@ class AV_CS:
         # note that final num_cmp = 1 for videos
         # for lang side B x num_verbs where
         # num_verbs = 4
-        # num_cmp1 = out_dict['pad_proposals'].size(0)
         out_dict['num_props'] = out_dict['num_props'].sum(dim=-1)
-        # out_dict['num_box'] = out_dict['num_box'].sum(dim=-1)
+        # num_cmp becomes 1 because all videos are concatenated
+        # to form one video
         out_dict['num_cmp'] = torch.tensor(1)
+        # concat props
         out_dict['pad_proposals'] = process_props(
             out_dict['pad_proposals'], keepdim=False, reshuffle_box=True
         )
-
+        # get total number of boxes
         num_box = out_dict['num_box'].sum(dim=-1)
 
+        # concat gt boxes
         out_dict['pad_gt_bboxs'] = process_gt_boxs(
             process_props(
                 out_dict['pad_gt_bboxs'], keepdim=True
@@ -1064,10 +1162,16 @@ class AV_CS:
             out_dict['num_box']
         )
 
+        # concat gt_box_mask
         out_dict['pad_gt_box_mask'] = process_gt_boxs_msk(
             out_dict['pad_gt_box_mask'], out_dict['num_box']
         )
 
+        # basically, gt boxes were like
+        # 4 x 100 with only some of the 100 being gt for each vid
+        # now changed to 100, because stacked on top of each other.
+        # target_cmp is the correct video where the groundtruth boxes lies
+        # set those as true
         tcmp = out_dict['target_cmp'].item()
         nboxes = [0] + out_dict['num_box'].cumsum(dim=0).tolist()
         new_pos = nboxes[tcmp]
@@ -1077,49 +1181,50 @@ class AV_CS:
 
         out_dict['num_box2'] = out_dict['num_box'].clone()
 
-        # out_dict['num_box2'] = out_dict['num_box']
         out_dict['num_box'] = num_box
 
+        # need to recompute frm_mask
         frm_mask = self.get_frm_mask(
             out_dict['pad_proposals'][:, 4],
             out_dict['pad_gt_bboxs'][:num_box, 4]
         )
 
+        # pad the frm_mask
         pad_frm_mask = np.ones((num_cmp * self.max_proposals, self.max_gt_box))
         pad_frm_mask[:, :num_box] = frm_mask
         out_dict['pad_frm_mask'] = torch.from_numpy(pad_frm_mask).byte()
 
+        # proposal mask has to be reshuffled
         out_dict['pad_pnt_mask'] = reshuffle_boxes(
             out_dict['pad_pnt_mask']
         )
-        # out_dict['pad_pnt_mask2'] = reshuffle_boxes(
-        # out_dict['pad_pnt_mask2'][:, 1:].contiguous()
-        # )
-
+        # region features have to be reshuffled
         out_dict['pad_region_feature'] = reshuffle_boxes(
             out_dict['pad_region_feature']
         )
 
+        # seg features are vid features, so just combine_first_ax
         out_dict['seg_feature'] = combine_first_ax(
             out_dict['seg_feature'], keepdim=False)
         out_dict['seg_feature_for_frms'] = combine_first_ax(
             out_dict['seg_feature_for_frms'].transpose(0, 1).contiguous(),
             keepdim=False
         )
+        # not used, kept for legacy
         out_dict['sample_idx'] = combine_first_ax(
             out_dict['sample_idx'], keepdim=False
         )
 
         return out_dict
 
-    def verb_item_getter_ds4_screen_temporal(self, idx):
+    def verb_item_getter_TEMP(self, idx):
         """
         Similar to spatial, but stack in the temporal
         dimension.
         """
         # For temporal stacking: do the following:
         # mostly everything is stacked temporally,
-        # only the durations would perhaps change?
+        # only the durations would perhaps change
         # bboxes frame ids would change
         # Caveats: Videos are not of equal length
         # The above is also applicable to spatial
@@ -1207,9 +1312,6 @@ class AV_CS:
 
         out_dict['num_box2'] = out_dict['num_box'].clone()
         out_dict['num_box'] = num_box
-        # frame mask is tricky, so redo
-        # out_dict['pad_frm_mask'] = combine_first_ax(
-        # out_dict['pad_frm_mask'], keepdim=False)
 
         frm_mask = self.get_frm_mask(
             out_dict['pad_proposals'][:, 4],
@@ -1224,8 +1326,7 @@ class AV_CS:
         out_dict['pad_frm_mask'] = torch.from_numpy(pad_frm_mask).byte()
         out_dict['pad_pnt_mask'] = combine_first_ax(
             out_dict['pad_pnt_mask'], keepdim=False)
-        # out_dict['pad_pnt_mask2'] = combine_first_ax(
-        # out_dict['pad_pnt_mask2'][:, 1:].contiguous(), keepdim=False)
+
         out_dict['seg_feature'] = combine_first_ax(
             out_dict['seg_feature'], keepdim=False)
         out_dict['seg_feature_for_frms'] = combine_first_ax(
@@ -1236,15 +1337,20 @@ class AV_CS:
 
         return out_dict
 
-    def verb_item_getter_screen_sep(self, idx):
+    def verb_item_getter_SEP(self, idx):
         """
         When we want separate videos
         """
         return self.itemcollector(idx)
 
-    def verb_item_getter_ds4_sigmoid_single(self, idx):
+    def verb_item_getter_nvid(self, idx):
         """
-        Pass the gt query only
+        Collect the samples
+        If SEP, append language to each vid,
+        can then directly output
+        If others, don't
+        SPAT/TEMP concat the videos in their
+        own functions.
         """
         def append_to_every_dict(dct_list, new_dct):
             "append a dict to every dict in a list of dicts"
@@ -1254,7 +1360,8 @@ class AV_CS:
 
         def shuffle_list_from_perm(lst, perm):
             return [lst[ix] for ix in perm]
-        # more_idxs = self.get_more_idxs(idx)
+
+        # sample idxs
         more_idxs = self.more_idx_collector(idx)
 
         new_idxs = [idx]
@@ -1263,11 +1370,15 @@ class AV_CS:
         verb_cmp = [1]
         verb_list = [curr_verb]
 
+        # some shenanigans for SEP
+        # basically need the verb
+        # which helps in choosing the
+        # correct video
         if self.split_type == 'train':
             cons = 0
-            while len(new_idxs) < self.ds4_inp_len:
+            while len(new_idxs) < self.cs_nvids_sample:
                 for arg_name, arg_ids in more_idxs.items():
-                    if len(new_idxs) < self.ds4_inp_len:
+                    if len(new_idxs) < self.cs_nvids_sample:
                         arg_id_to_append = arg_ids[cons]
                         # TODO: should be removable
                         if arg_id_to_append != -1:
@@ -1279,7 +1390,7 @@ class AV_CS:
         else:
             cons = 0
             for arg_name, arg_ids in more_idxs.items():
-                if len(new_idxs) < self.ds4_inp_len:
+                if len(new_idxs) < self.cs_nvids_sample:
                     arg_id_to_append = arg_ids[cons]
                     # TODO: should be removable
                     if arg_id_to_append != -1:
@@ -1293,9 +1404,11 @@ class AV_CS:
         else:
             simple_permute = torch.arange(len(new_idxs))
 
+        # these are mainly for debugging purposes
         simple_permute_inv = simple_permute.argsort()
         simple_permute = simple_permute.tolist()
         simple_permute_inv = simple_permute_inv.tolist()
+        # this is where the correct index lies
         targ_cmp = simple_permute_inv[0]
 
         new_idxs = shuffle_list_from_perm(new_idxs, simple_permute)
@@ -1309,29 +1422,28 @@ class AV_CS:
         srl_row = self.srl_annots.loc[idx]
         out_dict_verb_for_idx = self.get_srl_anns(srl_row, new_out_dicts[0])
 
-        # out_dict_verb_for_idx['ann_idx'] = torch.tensor(srl_row.ann_ind).long()
         # Append to every dict
+        # only for SEP
         if self.append_everywhere:
             append_to_every_dict(new_out_dicts, out_dict_verb_for_idx)
             collated_out_dicts, num_cmp = self.collate_dict_list(
-                new_out_dicts, pad_len=self.ds4_inp_len
+                new_out_dicts, pad_len=self.cs_nvids_sample
             )
         else:
             collated_out_dicts, num_cmp = self.collate_dict_list(
-                new_out_dicts, pad_len=self.ds4_inp_len)
+                new_out_dicts, pad_len=self.cs_nvids_sample)
             out_dict_verb_for_idx_coll, _ = self.collate_dict_list(
                 [out_dict_verb_for_idx], pad_len=1)
             collated_out_dicts.update(out_dict_verb_for_idx_coll)
 
         new_srl_idxs_pad = self.pad_words_with_vocab(
-            new_idxs, pad_len=self.ds4_inp_len)
+            new_idxs, pad_len=self.cs_nvids_sample)
 
-        # verb_cross_cmp = np.ones((num_cmp, num_cmp))
         verb_cmp_pad = self.pad_words_with_vocab(
-            verb_cmp, pad_len=self.ds4_inp_len, defm=[0])
+            verb_cmp, pad_len=self.cs_nvids_sample, defm=[0])
 
-        if len(verb_list) > self.ds4_inp_len:
-            verb_list = verb_list[:self.ds4_inp_len]
+        if len(verb_list) > self.cs_nvids_sample:
+            verb_list = verb_list[:self.cs_nvids_sample]
 
         verb_list_np = np.array(verb_list)
         verb_cross_cmp = verb_list_np[:, None] == verb_list_np
@@ -1339,137 +1451,61 @@ class AV_CS:
 
         verb_cross_cmp = np.pad(
             verb_cross_cmp,
-            (0, self.ds4_inp_len - len(verb_list)),
+            (0, self.cs_nvids_sample - len(verb_list)),
             mode='constant', constant_values=0
         )
 
         verb_cross_cmp_msk = np.pad(
             verb_cross_cmp_msk,
-            (0, self.ds4_inp_len - len(verb_list)),
+            (0, self.cs_nvids_sample - len(verb_list)),
             mode='constant', constant_values=0
         )
 
         num_cmp_arr = np.pad(
             np.eye(num_cmp, num_cmp),
-            (0, self.ds4_inp_len - num_cmp),
+            (0, self.cs_nvids_sample - num_cmp),
             mode='constant', constant_values=0
         )
 
         sp_pad = [ix for ix in range(
-            num_cmp, num_cmp + self.ds4_inp_len-num_cmp)]
+            num_cmp, num_cmp + self.cs_nvids_sample-num_cmp)]
         simple_permute = simple_permute + sp_pad
-        assert len(simple_permute) == self.ds4_inp_len
+        assert len(simple_permute) == self.cs_nvids_sample
         simple_permute_inv = simple_permute_inv + sp_pad
 
         out_dict_verb = {}
+        # permutation
         out_dict_verb['permute'] = torch.tensor(simple_permute).long()
+        # inverse permutation
         out_dict_verb['permute_inv'] = torch.tensor(
             simple_permute_inv).long()
+        # target for corr vid
         out_dict_verb['target_cmp'] = torch.tensor(targ_cmp).long()
+        # the srl idxs
         out_dict_verb['new_srl_idxs'] = torch.tensor(
             new_srl_idxs_pad).long()
+        # sent_idx is a misnomer, it is the idx in
+        # asrl_file. used in the evaluation
         out_dict_verb['sent_idx'] = torch.tensor(idx).long()
+        # number of videos, would be changed later
+        # if SPAT/TEMP
         out_dict_verb['num_cmp'] = torch.tensor(num_cmp).long()
+        # mask for number of videos, useful in loss functions
         out_dict_verb['num_cmp_msk'] = torch.tensor(
-            [1]*num_cmp + [0] * (self.ds4_inp_len - num_cmp))
+            [1]*num_cmp + [0] * (self.cs_nvids_sample - num_cmp))
+        # 1/0 matrix of which video is corr, only for legacy
         out_dict_verb['num_cross_cmp_msk'] = torch.from_numpy(num_cmp_arr)
+        # which verbs are same
         out_dict_verb['verb_cmp'] = torch.tensor(verb_cmp_pad).long()
+        # 1/0 matrix of which verbs are same
         out_dict_verb['verb_cross_cmp'] = torch.from_numpy(
             verb_cross_cmp).long()
+        # msk to remove padded idx case
         out_dict_verb['verb_cross_cmp_msk'] = torch.from_numpy(
             verb_cross_cmp_msk).long()
 
         collated_out_dicts.update(out_dict_verb)
 
-        return collated_out_dicts
-
-    def verb_item_getter_ds4_sigmoid(self, idx):
-        """
-        See `verb_item_getter_ds4_screen` for full details.
-        This implements the latter.
-        Note that here, the order is irrelevant,
-        the model treats each of them independently.
-        """
-        # out_dict = self.verb_item_getter(idx)
-        # srl_row = self.srl_annots.loc[idx]
-
-        # more_idxs = self.get_more_idxs(idx)
-        more_idxs = self.more_idx_collector(idx)
-
-        new_idxs = [idx]
-        lemma_verbs = self.srl_annots.lemma_verb
-        curr_verb = lemma_verbs.loc[idx]
-        verb_cmp = [1]
-        verb_list = [curr_verb]
-
-        for arg_name, arg_ids in more_idxs.items():
-            if len(new_idxs) < self.ds4_inp_len:
-                arg_id_to_append = arg_ids[0]
-                if arg_id_to_append != -1:
-                    new_idxs += [arg_id_to_append]
-                    new_verb = lemma_verbs.loc[arg_id_to_append]
-                    verb_cmp += [int(new_verb == curr_verb)]
-                    verb_list += [new_verb]
-
-        new_out_dicts = [self.verb_item_getter(
-            new_idx) for new_idx in new_idxs]
-
-        collated_out_dicts, num_cmp = self.collate_dict_list(
-            new_out_dicts, pad_len=self.ds4_inp_len)
-
-        new_srl_idxs_pad = self.pad_words_with_vocab(
-            new_idxs, pad_len=self.ds4_inp_len)
-
-        verb_cmp_pad = self.pad_words_with_vocab(
-            verb_cmp, pad_len=self.ds4_inp_len, defm=[2])
-
-        # verb_list_pad = self.pad_words_with_vocab(
-        # verb_list, pad_len=self.ds4_inp_len, defm=[-1])
-        if len(verb_list) > self.ds4_inp_len:
-            verb_list = verb_list[:self.ds4_inp_len]
-
-        verb_list_np = np.array(verb_list)
-        verb_cross_cmp = verb_list_np[:, None] == verb_list_np
-        verb_cross_cmp_msk = np.ones(verb_cross_cmp.shape)
-
-        verb_cross_cmp = np.pad(
-            verb_cross_cmp,
-            (0, self.ds4_inp_len - len(verb_list)),
-            mode='constant', constant_values=0
-        )
-
-        verb_cross_cmp_msk = np.pad(
-            verb_cross_cmp_msk,
-            (0, self.ds4_inp_len - len(verb_list)),
-            mode='constant', constant_values=0
-        )
-
-        # verb_cmp_pad_np = np.array(verb_cmp_pad)
-        # verb_cross_cmp_msk1d = verb_cmp_pad != 2
-        # verb_cross_cmp_msk2d = (
-        #     verb_cross_cmp_msk1d[:, None] == verb_cross_cmp_msk1d)
-
-        num_cmp_arr = np.pad(
-            np.eye(num_cmp, num_cmp),
-            (0, self.ds4_inp_len - num_cmp),
-            mode='constant', constant_values=0
-        )
-
-        out_dict_verb = {}
-        out_dict_verb['new_srl_idxs'] = torch.tensor(
-            new_srl_idxs_pad).long()
-        out_dict_verb['sent_idx'] = torch.tensor(idx).long()
-        out_dict_verb['num_cmp'] = torch.tensor(num_cmp).long()
-        out_dict_verb['num_cmp_msk'] = torch.tensor(
-            [1]*num_cmp + [0] * (self.ds4_inp_len - num_cmp))
-        out_dict_verb['verb_cmp'] = torch.tensor(verb_cmp_pad).long()
-        out_dict_verb['num_cross_cmp_msk'] = torch.from_numpy(num_cmp_arr)
-        out_dict_verb['verb_cross_cmp'] = torch.from_numpy(
-            verb_cross_cmp).long()
-        out_dict_verb['verb_cross_cmp_msk'] = torch.from_numpy(
-            verb_cross_cmp_msk).long()
-
-        collated_out_dicts.update(out_dict_verb)
         return collated_out_dicts
 
 
@@ -1504,15 +1540,6 @@ class BatchCollator:
             out_dict[k] = torch.stack(
                     [b[k] for b in batch])
         assert all([len(v) == batch_size for k, v in out_dict.items()])
-
-        # num_cmp = out_dict['new_srl_idxs'].size(1)
-        # simple_permute = torch.arange(num_cmp)
-        # simple_permute_inv = simple_permute.argsort()
-        # out_dict['permute_inv'] = torch.stack(
-        #     [simple_permute_inv for b in batch])
-        # out_dict['permute'] = torch.stack(
-        #     [simple_permute for b in batch])
-        # out_dict['target_cmp'] = torch.tensor([0]*batch_size).long()
 
         return out_dict
 
@@ -1549,8 +1576,3 @@ if __name__ == '__main__':
 
     diter = iter(data.train_dl)
     batch = next(diter)
-
-    # anet_ent_ds = AnetEntDataset(
-    #     cfg=cfg, ann_file=cfg.ds.ann_file.train,
-    #     split_type='train'
-    # )

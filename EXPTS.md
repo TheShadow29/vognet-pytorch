@@ -9,6 +9,10 @@ You need `ds.exp_setting='gt5'` or `ds.exp_setting='p100'` in `anet_srl_cfg.yml`
 Note that the string after `code/main_dist.py` is arbitrary, and you can set it to anything
 you want.
 
+For `vog` model, you need to explicitly set `--mdl.obj_tx.use_rel=True` and  `--mdl.mul_tx.use_rel=True`
+Alternatively, set it in `configs/anet_srl_cfg.yml`.
+In that case, you would have to set `--mdl.obj_tx.use_rel=False` when using `vgrnd`.
+
 1. `python code/main_dist.py "svsq_igrnd" --ds.conc_type='svsq' --mdl.name='igrnd --train.prob_thresh=0.'`
 1. `python code/main_dist.py "svsq_vgrnd" --ds.conc_type='svsq' --mdl.name='vgrnd --train.prob_thresh=0.'`
 1. `python code/main_dist.py "svsq_vog" --ds.conc_type='svsq' --mdl.name='vog --train.prob_thresh=0.`

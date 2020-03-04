@@ -173,7 +173,7 @@ class ConcSPAT(ConcTEMP):
         return prop_seg_feats
 
     def forward(self, inp):
-        return ConcTemp.forward(self, inp)
+        return ConcTEMP.forward(self, inp)
 
 
 class LossB_TEMP(nn.Module):
