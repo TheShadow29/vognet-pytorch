@@ -42,7 +42,8 @@ sys.path.append('./utils')
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
     from a forked multiprocessing child
-
+    Credits:
+    https://github.com/williamFalcon/forked-pdb/blob/master/fpdb.py
     """
 
     def interaction(self, *args, **kwargs):
