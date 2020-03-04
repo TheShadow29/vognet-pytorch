@@ -1,7 +1,7 @@
 """
 Take care of SEP case.
-
 """
+
 from mdl_conc_single import ConcBase
 import torch
 from torch import nn

@@ -9,7 +9,8 @@ from box_utils import bbox_overlaps
 
 class ConcBase(nn.Module):
     """
-    Base Model for concatenation
+    Base Model for concatenation.
+    Kept for Historical Reasons
     """
 
     def set_args_conc(self):
