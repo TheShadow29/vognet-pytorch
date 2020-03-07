@@ -47,6 +47,7 @@ ds:
   # Shuffle:
   cs_shuffle: True
   none_word: "<none>"
+
 mdl:
   name: 'vog'
   seg_feat_dim: 3072
@@ -62,6 +63,7 @@ mdl:
     seg_encode_size: 256
     lang_encode_size: 256
   obj_tx:
+    use_ddp: false
     to_use: true
     n_layers: 1
     n_heads: 3
@@ -69,6 +71,7 @@ mdl:
     use_rel: false
     one_frm: false
   mul_tx:
+    use_ddp: false
     to_use: true
     n_layers: 1
     n_heads: 3

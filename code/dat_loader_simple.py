@@ -1546,7 +1546,6 @@ class BatchCollator:
 
 def get_data(cfg):
     # Get which dataset to use
-    # ds_name = cfg.ds_to_use
     DS = Anet_SRL
 
     collate_fn = BatchCollator

@@ -1,6 +1,18 @@
 """
 Different Models: ImgGrnd, VidGrnd, VOGNet
+
+Also contains shape comments for each
+conc strategy, also see forward functions
+for SEP and TEMP for completenes
+
+Note that Language Encoding is the same for all
+
+Assume:
+- 4 videos, one of them groundtruth
+- each video with 10 frames
+- each frame with 5 proposals
 """
+
 import torch
 from torch import nn
 from mdl_base import AnetBaseMdl
@@ -28,6 +40,9 @@ class ImgGrnd(AnetBaseMdl):
     """
 
     def set_args_mdl(self):
+        """
+        Model specific args
+        """
         # proposal dimension
         self.prop_dim = self.cfg.mdl.prop_feat_dim
         # Encoded dimension of the region features
@@ -73,7 +88,7 @@ class ImgGrnd(AnetBaseMdl):
 
         srl_tag = inp['srl_tag_word_ind'].view(B*num_verbs, -1)
         assert srl_tag.shape == srl_out_arg_seq.shape
-        # B*6 x 40
+
         return {
             'src_tokens': srl_out_arg_seq,
             'src_tags': srl_tag
@@ -83,6 +98,7 @@ class ImgGrnd(AnetBaseMdl):
         """
         lstm_encoding: B*6 x 40 x 2048
         output: B*6 x 5 x 4096
+
         Basically, given the lstm inputs,
         want to separate out just
         the argument parts
@@ -423,6 +439,10 @@ class VidGrnd(ImgGrnd):
                 drop_ratio=attn_drop,
                 pe=False,
             )
+
+        if self.cfg.mdl.obj_tx.use_ddp:
+            self.obj_tx = nn.DataParallel(self.obj_txf)
+
         self.pe_obj_sub_enc = nn.Sequential(
             *[
                 nn.Linear(5, n_heads),
@@ -553,6 +573,9 @@ class VOGNet(VidGrnd):
                     pe=False
                 )
             )
+
+        if self.cfg.mdl.mul_tx.use_ddp:
+            self.mult_txf = nn.DataParallel(self.mult_txf)
 
         self.pe_mul_sub_enc = nn.Sequential(
             *[
