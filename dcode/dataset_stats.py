@@ -135,11 +135,30 @@ class AnetSRL_Vis(object):
                 )
         return lemma_counts
 
+    def get_num_q_per_vid(self):
+        num_q_per_vid = (
+            len(self.trn_srl_annots) /
+            len(self.trn_srl_annots.vid_seg.unique())
+        )
+
+        num_srl_per_q = self.trn_srl_annots.req_args.apply(
+            lambda x: len(x)).mean()
+
+        num_w_per_q = self.trn_srl_annots.req_pat_ix.apply(
+            lambda x: sum([len(y[1]) for y in x])).mean()
+
+        return num_q_per_vid, num_srl_per_q, num_w_per_q
+
     def print_all_stats(self):
         vis_list = []
         nvid = self.get_num_vids()
         print("Number of videos in Train/Valid/Test: "
               f"{nvid['train']}, {nvid['valid']}, {nvid['test']}")
+
+        num_q_per_vid, num_srl_per_q, num_w_per_q = self.get_num_q_per_vid()
+        print(f"Number of Queries per Video is {num_q_per_vid}")
+        print(f"Number of Queries per Video is {num_srl_per_q}")
+        print(f"Number of Queries per Video is {num_w_per_q}")
 
         num_noun_phrases_for_srl = self.get_num_noun_phrase().most_common(n=20)
         num_np_srl = pd.DataFrame.from_records(
@@ -153,10 +172,10 @@ class AnetSRL_Vis(object):
         print('Noun Phrases Count')
         print(num_np_srl.to_csv(index=False))
 
-        num_noun_phrases_with_box_for_srl = self.get_num_phrase_with_box(
-        ).most_common(n=20)
+        num_noun_phrases_with_box_for_srl = self.get_num_phrase_with_box()
+
         num_grnd_np_srl = pd.DataFrame.from_records(
-            data=num_noun_phrases_with_box_for_srl,
+            data=num_noun_phrases_with_box_for_srl.most_common(n=20),
             columns=['Arg', 'Count']
         )
         if self.vis:

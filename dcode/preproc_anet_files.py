@@ -372,11 +372,16 @@ class AnetEntFiles:
             'num_gt': ngt
         }
 
-    def compute_recall(self):
+    def compute_recall(self, exp_setting='gt5'):
         """
         Compute recall for the created h5 file
         """
-        with h5py.File(self.cfg.ds.proposal_gt5_h5_resized, 'r') as f:
+        if exp_setting == 'gt5':
+            pfile = self.cfg.ds.proposal_gt5_h5_resized
+        elif exp_setting == 'p100':
+            pfile = self.cfg.ds.proposal_h5_resized
+
+        with h5py.File(pfile, 'r') as f:
             label_proposals = f['dets_labels'][:]
 
         vid_dict_df = self.vid_dict_df
@@ -425,7 +430,7 @@ class AnetEntFiles:
         return
 
 
-def main(task: str):
+def main(task: str, exp_setting='gt5'):
     cfg = CN(yaml.safe_load(open('./configs/create_asrl_cfg.yml')))
     anet_pre = AnetEntFiles(cfg)
     if 'resize_boxes_ae' in task:
@@ -433,7 +438,7 @@ def main(task: str):
     if 'choose_gt5' in task:
         anet_pre.choose_gt5(save=True)
     if 'compute_recall' in task:
-        anet_pre.compute_recall()
+        anet_pre.compute_recall(exp_setting)
 
 
 if __name__ == '__main__':
