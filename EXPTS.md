@@ -39,6 +39,8 @@ For instance, to test a ImageGrnd in `p100` setting which was trained in `gt5` s
 
 1. `python code/main_dist.py "svsq_igrnd_gt5_to_p100" --ds.conc_type='svsq' --mdl.name='igrnd --train.prob_thresh=0.' --train.resume=True --train.resume_path='./tmp/models/svsq_igrnd.pth' --ds.exp_setting='p100' --only_val=True`
 
+For `TEMP` and `SPAT` we found `train.prob_thresh=0.5` to give the best results
+
 ## Across Conc Types
 
 You can also test models trained in one concatenation type like `SPAT` in another type like `TEMP`. For instance,

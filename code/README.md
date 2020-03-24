@@ -12,3 +12,5 @@
 1. `_init_stuff.py` initializes paths to be included, typings, as well as yaml float loader (otherwise 1e-4 cannot be read correctly).
 1. `extended_config.py` has some handy configuration utils.
 1. `transformer_code.py` has the transformer implementation, also has the relative transformer which uses relative position encoding (RPE).
+
+Some other useful files are under [`utils` folder](../utils/)
