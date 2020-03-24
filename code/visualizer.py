@@ -7,9 +7,9 @@ import pickle
 from PIL import Image
 from pathlib import Path
 from eval_fn_corr import (
-    GroundEvalDS4_Sep,
-    GroundEvalDS4_Temporal,
-    GroundEvalDS4_Spatial
+    GroundEval_SEP,
+    GroundEval_TEMP,
+    GroundEval_SPAT
 )
 import fire
 from munch import Munch
@@ -64,15 +64,15 @@ class ASRL_Vis:
         pass
 
 
-class ASRL_Vis_SEP(GroundEvalDS4_Sep, ASRL_Vis):
+class ASRL_Vis_SEP(GroundEval_SEP, ASRL_Vis):
     pass
 
 
-class ASRL_Vis_TEMP(GroundEvalDS4_Temporal, ASRL_Vis):
+class ASRL_Vis_TEMP(GroundEval_TEMP, ASRL_Vis):
     pass
 
 
-class ASRL_Vis_SPAT(GroundEvalDS4_Spatial, ASRL_Vis):
+class ASRL_Vis_SPAT(GroundEval_SPAT, ASRL_Vis):
     pass
 
 

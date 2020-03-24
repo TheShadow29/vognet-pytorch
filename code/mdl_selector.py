@@ -17,9 +17,9 @@ from mdl_vog import (
 )
 
 from eval_vsrl_corr import (
-    EvaluatorDS4_Corr_SSJ1_Sep,
-    EvaluatorDS4_Corr_SSJ1_Temporal,
-    EvaluatorDS4_Corr_SSJ1_Spatial
+    EvaluatorSEP,
+    EvaluatorTEMP,
+    EvaluatorSPAT
 )
 
 
@@ -36,7 +36,7 @@ def get_mdl_loss_eval(cfg):
         else:
             raise NotImplementedError
         loss = LossB_SEP
-        evl = EvaluatorDS4_Corr_SSJ1_Sep
+        evl = EvaluatorSEP
     elif conc_type == 'temp':
         if mdl_type == 'igrnd':
             mdl = ImgGrnd_TEMP
@@ -47,7 +47,7 @@ def get_mdl_loss_eval(cfg):
         else:
             raise NotImplementedError
         loss = LossB_TEMP
-        evl = EvaluatorDS4_Corr_SSJ1_Temporal
+        evl = EvaluatorTEMP
     elif conc_type == 'spat':
         if mdl_type == 'igrnd':
             mdl = ImgGrnd_SPAT
@@ -58,7 +58,7 @@ def get_mdl_loss_eval(cfg):
         else:
             raise NotImplementedError
         loss = LossB_SPAT
-        evl = EvaluatorDS4_Corr_SSJ1_Spatial
+        evl = EvaluatorSPAT
     else:
         raise NotImplementedError
 

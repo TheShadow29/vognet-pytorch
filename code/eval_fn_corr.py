@@ -27,7 +27,6 @@ import numpy as np
 import pickle
 import json
 from tqdm import tqdm
-# from fastprogress import progress_bar as tqdm
 from munch import Munch
 import ast
 from box_utils import box_iou
@@ -270,7 +269,7 @@ class GroundEval_Corr:
         return self.post_proc_final(out_dict)
 
 
-class GroundEvalDS4_Sep(GroundEval_Corr):
+class GroundEval_SEP(GroundEval_Corr):
     def after_init(self):
         self.res_dicts = ['res_dict', 'cons_dict',
                           'vidf_dict', 'strict_res_dict']
@@ -470,7 +469,7 @@ class GroundEvalDS4_Sep(GroundEval_Corr):
         return self.post_proc(out_dict)
 
 
-class GroundEvalDS4_Temporal(GroundEvalDS4_Sep):
+class GroundEval_TEMP(GroundEval_SEP):
     def pred_cmp_to_pass(self, p0_cons, p1):
         return p0_cons
 
@@ -597,7 +596,7 @@ class GroundEvalDS4_Temporal(GroundEvalDS4_Sep):
         }
 
 
-class GroundEvalDS4_Spatial(GroundEvalDS4_Sep):
+class GroundEval_SPAT(GroundEval_SEP):
     def pred_cmp_to_pass(self, p0_cons, p1):
         return p1
 
@@ -775,11 +774,11 @@ def main(pred_file, split_type='valid', **kwargs):
 
     conc_type = cfg.ds.conc_type
     if conc_type == 'sep' or conc_type == 'svsq':
-        grnd_eval = GroundEvalDS4_Sep(cfg, comm)
+        grnd_eval = GroundEval_SEP(cfg, comm)
     elif conc_type == 'temp':
-        grnd_eval = GroundEvalDS4_Temporal(cfg, comm)
+        grnd_eval = GroundEval_TEMP(cfg, comm)
     elif conc_type == 'spat':
-        grnd_eval = GroundEvalDS4_Spatial(cfg, comm)
+        grnd_eval = GroundEval_SPAT(cfg, comm)
     else:
         raise NotImplementedError
     out = grnd_eval.eval_ground_acc(pred_file, split_type=split_type)

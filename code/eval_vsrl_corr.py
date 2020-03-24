@@ -4,9 +4,9 @@ Corrected a few implementations
 for sep, temporal, spatial.
 """
 from eval_fn_corr import (
-    GroundEvalDS4_Sep,
-    GroundEvalDS4_Temporal,
-    GroundEvalDS4_Spatial
+    GroundEval_SEP,
+    GroundEval_TEMP,
+    GroundEval_SPAT
 )
 import pickle
 from fastprogress import progress_bar
@@ -150,12 +150,12 @@ class Evaluator(torch.nn.Module):
                 k: torch.tensor(0.).to(self.device) for k in self.met_keys}
 
 
-class EvaluatorDS4_Corr_SSJ1_Sep(Evaluator):
+class EvaluatorSEP(Evaluator):
     def after_init(self):
 
         self.met_keys = ['avg1', 'avg1_cons',
                          'avg1_vidf', 'avg1_strict']
-        self.grnd_eval = GroundEvalDS4_Sep(self.cfg, self.comm)
+        self.grnd_eval = GroundEval_SEP(self.cfg, self.comm)
 
         self.num_sampled_frm = self.num_frms
 
@@ -273,14 +273,14 @@ class EvaluatorDS4_Corr_SSJ1_Sep(Evaluator):
         return out_dict_list
 
 
-class EvaluatorDS4_Corr_SSJ1_Temporal(EvaluatorDS4_Corr_SSJ1_Sep):
+class EvaluatorTEMP(EvaluatorSEP):
     def after_init(self):
         # self.met_keys = ['avg1', 'macro_avg1', 'avg1_cons', 'macro_avg1_cons']
         # self.grnd_eval = GroundEvalDS4(self.cfg, self.comm)
 
         self.met_keys = ['avg1', 'avg1_cons',
                          'avg1_vidf', 'avg1_strict']
-        self.grnd_eval = GroundEvalDS4_Temporal(self.cfg, self.comm)
+        self.grnd_eval = GroundEval_TEMP(self.cfg, self.comm)
 
         # self.num_sampled_frm = self.cfg.misc.num_sampled_frm
         self.num_sampled_frm = self.num_frms
@@ -345,10 +345,10 @@ class EvaluatorDS4_Corr_SSJ1_Temporal(EvaluatorDS4_Corr_SSJ1_Sep):
         }
 
 
-class EvaluatorDS4_Corr_SSJ1_Spatial(EvaluatorDS4_Corr_SSJ1_Sep):
+class EvaluatorSPAT(EvaluatorSEP):
     def after_init(self):
         self.met_keys = ['avg1', 'avg1_cons', 'avg1_vidf', 'avg1_strict']
-        self.grnd_eval = GroundEvalDS4_Spatial(self.cfg, self.comm)
+        self.grnd_eval = GroundEval_SPAT(self.cfg, self.comm)
 
         self.num_sampled_frm = self.num_frms
         # self.num_sampled_frm = self.cfg.misc.num_sampled_frm
