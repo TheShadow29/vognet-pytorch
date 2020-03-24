@@ -1,0 +1,131 @@
+ds_name: "anet"
+ds:
+  # where to find the rgb+flow data
+  seg_feature_root: "data/anet/rgb_motion_1d"
+  # choose one setting
+  exp_setting: "gt5" #or "p100"
+  gt5:
+    # bounding boxes from FasterRCNN
+    proposal_h5: "data/anet/anet_detection_vg_fc6_feat_gt5_rois.h5"
+    # extracted features from FasterRCNN
+    feature_root: "data/anet/fc6_feat_5rois"
+    # number of proposals considered per frame
+    num_prop_per_frm: 5
+  p100:
+    proposal_h5: "data/anet/anet_detection_vg_fc6_feat_100rois_resized.h5"
+    feature_root: "data/anet/fc6_feat_100rois"
+    num_prop_per_frm: 100
+  resized_width: 720
+  resized_height: 405
+  num_sampled_frm: 10
+  max_gt_box: 100
+  t_attn_size: 480
+  max_seq_length: 20
+  anet_cap_file: "data/anet_srl_scratch/anet_captions_all_splits.json"
+  anet_ent_annot_file: "data/anet_srl_scratch/anet_ent_cls_bbox_trainval.json"
+  anet_ent_split_file: "data/anet_srl_scratch/dic_anet.json"
+  include_srl_args: ['ARG0', 'ARG1', 'ARG2', 'ARGM-LOC']
+  # Vocab file for SRLs
+  arg_vocab_file: "data/anet_verb/arg_vocab.pkl"
+  # Annot files:
+  trn_ann_file: "data/anet_srl_scratch/csv_dir/train_postproc.csv"
+  val_ann_file: "data/anet_srl_scratch/csv_dir/val_postproc.csv"
+  # Object Mappings:
+  trn_ds4_dicts: "data/anet_verb/trn_srl_args_dict_obj_to_ind.json"
+  val_ds4_dicts: "data/anet_verb/val_srl_args_dict_obj_to_ind.json"
+  # ASRL with indices for SPAT/TEMP
+  trn_ds4_inds: "data/anet_verb/trn_srl_annots_with_ds4_inds.csv"
+  val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
+  # Sampling mechanism
+  trn_sample: "ds4_random"
+  val_sample: "ds4"
+  # Num Vids Sampled at a time (should be an int)
+  trn_num_vid_sample: 4
+  val_num_vid_sample: 4
+  # Type of Concatenation, choose among ['svsq', 'sep', 'temp', 'spat']
+  conc_type: 'spat'
+  # Shuffle:
+  cs_shuffle: True
+  none_word: "<none>"
+
+mdl:
+  name: 'vog'
+  seg_feat_dim: 3072
+  prop_feat_dim: 2048
+  input_encoding_size: 512
+  use_vis_msk: True
+  rnn:
+    rnn_size: 1024
+    num_layers: 2
+    drop_prob_lm: 0.5
+  vsrl:
+    prop_encode_size: 256
+    seg_encode_size: 256
+    lang_encode_size: 256
+  obj_tx:
+    use_ddp: false
+    to_use: true
+    n_layers: 1
+    n_heads: 3
+    attn_drop: 0.2
+    use_rel: false
+    one_frm: false
+  mul_tx:
+    use_ddp: false
+    to_use: true
+    n_layers: 1
+    n_heads: 3
+    attn_drop: 0.2
+    use_rel: false
+    one_frm: true
+    cross_frm: false
+loss:
+  only_vid_loss: false
+  loss_lambda: 1
+  loss_margin: 0.1
+  loss_margin_vid: 0.5
+  # loss_type is either
+  # cosine or bce
+  loss_type: 'bce'
+
+misc:
+  # Place to save models/logs/predictions etc
+  tmp_path: "tmp"
+  # Include/Exclude proposal based on the threshold
+  prop_thresh: 0.
+  # Whether to exclude the proposals having background class
+  exclude_bgd_det: False
+  # Whether to add the proposal (5d coordinate) to
+  # the region feature
+  add_prop_to_region: False
+  # What context to use for average pooling segment features
+  ctx_for_seg_feats: 0
+  # max number of semantic roles in a sentence
+  srl_arg_length: 5
+  # how many boxes to consider for a particular phrase
+  box_per_srl_arg: 4
+train:
+  lr: 1e-4
+  epochs: 10
+  bs: 4
+  nw: 4
+  bsv: 4
+  nwv: 4
+  resume: true
+  resume_path: ""
+  load_opt: false
+  load_normally: true
+  strict_load: true
+  use_reduce_lr_plateau: false
+  verbose: false
+  prob_thresh: 0.2
+log:
+  deb_it: 2
+local_rank: 0
+do_dist: False
+do_dp: false
+num_gpus: 1
+only_val: false
+only_test: false
+run_final_val: true
+overfit_batch: false
