@@ -107,7 +107,7 @@ We thank:
 3. [fairseq](https://github.com/pytorch/fairseq) for providing a neat implementation of LSTM.
 
 ## Citation
-
+```
 @InProceedings{Sadhu_2020_CVPR,
 	author = {Sadhu, Arka and Chen, Kan and Nevatia, Ram},
 	title = {Video Object Grounding using Semantic Roles in Language Description},
@@ -115,3 +115,4 @@ We thank:
 	month = {June},
 	year = {2020}
 }
+```
