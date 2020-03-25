@@ -38,7 +38,7 @@ The hierarchical structure of `yml` is also supported using `.`
 For example, if you want to change the `mdl name` which looks like
 ```
 mdl:
-	name: xyz
+ name: xyz
 ```
 you can pass `--mdl.name='abc'`
 
@@ -95,9 +95,9 @@ If you are using your own code, but just want to use evaluation, you must save y
 
 ## Pre-Trained Models
 
-Google Drive Link for all models:
+Google Drive Link for all models: https://drive.google.com/open?id=1e3FiX4FTC8n6UrzY9fTYQzFNKWHihzoQ
 
-Also, see individual models at [EXPTS.md](./EXPTS.md)
+Also, see individual models (with corresponding logs) at [EXPTS.md](./EXPTS.md)
 
 ## Acknowledgements:
 
