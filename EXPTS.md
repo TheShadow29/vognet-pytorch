@@ -30,11 +30,11 @@ python code/main_dist.py "svsq_igrnd" --ds.conc_type='svsq' --mdl.name='igrnd' -
 
 Similarly, to run ImgGrnd with `SEP`, `TEMP`, `SPAT`, set `--ds.conc_type` 
 
-```python code/main_dist.py "svsq_igrnd" --ds.conc_type='sep' --mdl.name='igrnd' --train.prob_thresh=0.```
+```python code/main_dist.py "sep_igrnd" --ds.conc_type='sep' --mdl.name='igrnd' --train.prob_thresh=0.```
 
-```python code/main_dist.py "svsq_igrnd" --ds.conc_type='temp' --mdl.name='igrnd' --train.prob_thresh=0.2```
+```python code/main_dist.py "temp_igrnd" --ds.conc_type='temp' --mdl.name='igrnd' --train.prob_thresh=0.2```
 
-```python code/main_dist.py "svsq_igrnd" --ds.conc_type='spat' --mdl.name='igrnd' --train.prob_thresh=0.2```
+```python code/main_dist.py "spat_igrnd" --ds.conc_type='spat' --mdl.name='igrnd' --train.prob_thresh=0.2```
 
 Similary, to run VidGrnd in `SPAT`
 ```
@@ -43,7 +43,8 @@ python code/main_dist.py "spat_vgrnd" --ds.conc_type='spat' --mdl.name='vgrnd' -
 
 Or, to run VOGNet in `SPAT`
 ```
-python code/main_dist.py "spat_vog" --ds.conc_type='spat' --mdl.name='vog' --train.prob_thresh=0.2
+python code/main_dist.py "spat_vog" --ds.conc_type='spat' --mdl.name='vog' \
+--mdl.obj_tx.use_rel=True --mdl.mul_tx.use_rel=True --train.prob_thresh=0.2
 ```
 
 To run with 100 proposals per frame, additionally pass `--ds.exp_setting='p100'` 
@@ -88,6 +89,8 @@ For `TEMP` and `SPAT` we found `train.prob_thresh=0.5` to give the best results
 
 We provide google drive links to the best model, the output predictions for all the tables in the paper. 
 Alternatively, you can download them at once from [this drive link](https://drive.google.com/open?id=1e3FiX4FTC8n6UrzY9fTYQzFNKWHihzoQ)
+
+Additionally, the exact command used to run the model can be found in the log file under `cmd`
 
 ## GT5 Models, All Conc Strategies
 Page 7, Table 3, Row 1
