@@ -24,33 +24,45 @@ you want.
 ## Main Results (GT5/P100)
 
 To run ImgGrnd with `SVSQ` strategy:
-1. `python code/main_dist.py "svsq_igrnd" --ds.conc_type='svsq' --mdl.name='igrnd' --train.prob_thresh=0.`
+```
+python code/main_dist.py "svsq_igrnd" --ds.conc_type='svsq' --mdl.name='igrnd' --train.prob_thresh=0.
+```
 
-Similarly, to run ImgGrnd with `SEP`, `TEMP`, `SPAT`, set `-ds.conc_type` 
-1. `python code/main_dist.py "svsq_igrnd" --ds.conc_type='sep' --mdl.name='igrnd' --train.prob_thresh=0.`
-1. `python code/main_dist.py "svsq_igrnd" --ds.conc_type='temp' --mdl.name='igrnd' --train.prob_thresh=0.2`
-1. `python code/main_dist.py "svsq_igrnd" --ds.conc_type='spat' --mdl.name='igrnd' --train.prob_thresh=0.2`
+Similarly, to run ImgGrnd with `SEP`, `TEMP`, `SPAT`, set `--ds.conc_type` 
 
-Similary, to run VidGrnd in `spat`
-1. `python code/main_dist.py "spat_vgrnd" --ds.conc_type='spat' --mdl.name='vgrnd' --train.prob_thresh=0.2`
+```python code/main_dist.py "svsq_igrnd" --ds.conc_type='sep' --mdl.name='igrnd' --train.prob_thresh=0.```
 
-Or, to run VOGNet in `spat`
-1. `python code/main_dist.py "spat_vog" --ds.conc_type='spat' --mdl.name='vog' --train.prob_thresh=0.2`
+```python code/main_dist.py "svsq_igrnd" --ds.conc_type='temp' --mdl.name='igrnd' --train.prob_thresh=0.2```
 
-To run with 100 proposals per frame, pass `--ds.exp_setting='p100'`
+```python code/main_dist.py "svsq_igrnd" --ds.conc_type='spat' --mdl.name='igrnd' --train.prob_thresh=0.2```
+
+Similary, to run VidGrnd in `SPAT`
+```
+python code/main_dist.py "spat_vgrnd" --ds.conc_type='spat' --mdl.name='vgrnd' --train.prob_thresh=0.2
+```
+
+Or, to run VOGNet in `SPAT`
+```
+python code/main_dist.py "spat_vog" --ds.conc_type='spat' --mdl.name='vog' --train.prob_thresh=0.2
+```
+
+To run with 100 proposals per frame, additionally pass `--ds.exp_setting='p100'` 
+For `TEMP` and `SPAT` in `p100` we set `prob_thresh=0.1` (by tuning on validation set).
 
 ## Across Conc Types
 
 You can also test models trained in one concatenation type like `SPAT` in another type like `TEMP`. For instance,
 
-1. `python code/main_dist.py "vog_train_spat_test_temp" --ds.conc_type='temp' --mdl.name='vog' --train.prob_thresh=0.2 --train.resume=True --train.resume_path='./tmp/models/spat_vog.pth --only_val=True`
+```
+python code/main_dist.py "vog_train_spat_test_temp" --ds.conc_type='temp' --mdl.name='vog' --train.prob_thresh=0.2 --train.resume=True --train.resume_path='./tmp/models/spat_vog.pth --only_val=True
+```
 
 ## Model Ablations
 
-If you want to use no object or multi-modal transformer, use `--mdl.name='igrnd'`
-If you want only object transformer, use `--mdl.name='vgrnd'`
-If you want only multimodal transformer, use `--mdl.name='vog'` and `--mdl.obj_tx.to_use=false`
-If you want to use both object and multimodal transformer use `--mdl.name='vog'`
+1. No object or multi-modal transformer, use `--mdl.name='igrnd'`
+1. Only object transformer, use `--mdl.name='vgrnd'`
+1. Only multimodal transformer, use `--mdl.name='vog'` and `--mdl.obj_tx.to_use=false`
+1. Both object and multimodal transformer with RPE use `--mdl.name='vog'`
 
 To set the number of heads and layers, set `n_layers` and `n_heads` under `obj_tx` and `mul_tx` respectively.
 
@@ -59,12 +71,16 @@ To use relative position encoding set `use_rel=true` under `obj_tx` and/or `mul_
 ## GT5 -> P100 Transfer
 
 For transfering GT5 trained models to P100, we need to pass `train.resume=True` and
-provide the resume path via `train.resume_path`.
+provide the trained moel path via `train.resume_path`.
+
 We also need to provide `only_val=True` and set `ds.exp_setting='p100'`
 
 For instance, to test a ImageGrnd in `p100` setting which was trained in `gt5` setting:
 
-1. `python code/main_dist.py "svsq_igrnd_gt5_to_p100" --ds.conc_type='svsq' --mdl.name='igrnd --train.prob_thresh=0.' --train.resume=True --train.resume_path='./tmp/models/svsq_igrnd.pth' --ds.exp_setting='p100' --only_val=True`
+```
+python code/main_dist.py "svsq_igrnd_gt5_to_p100" --ds.conc_type='svsq' --mdl.name='igrnd --train.prob_thresh=0.' --train.resume=True --train.resume_path='./tmp/models/svsq_igrnd.pth' --ds.exp_setting='p100' --only_val=True
+```
+Here, `./tmp/models/svsq_igrnd.pth` is the model path for ImgGrnd trained using SVSQ in GT5 setting.
 
 For `TEMP` and `SPAT` we found `train.prob_thresh=0.5` to give the best results
 
