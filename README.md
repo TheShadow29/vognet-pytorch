@@ -1,15 +1,15 @@
 # vognet-pytorch
 
-This is the official repository for CVPR20 paper Video Object Grounding using Semantic Roles in Language Description.
+This is the official repository for CVPR20 paper [Video Object Grounding using Semantic Roles in Language Description](https://arxiv.org/abs/2003.10606).
+
 It includes:
 1. code to create the ActivityNet-SRL dataset under `dcode/`
 1. code to run all the experiments provided in the paper under `code/`
 
 Code has been modularized from its initial implementation.
-It should be easy to extend the code for other datasets by inheriting required modules.
+It should be easy to extend the code for other datasets by inheriting relevant modules. 
 
-All the numbers in the paper can be reproduced using this codebase.
-See [EXPTS.md](./EXPTS.md) for more details.
+[EXPTS.md](./EXPTS.md) contains details on reproducing the results in the paper with pre-trained models and log files.
 
 ## Install
 
