@@ -41,7 +41,7 @@ The hierarchical structure of `yml` is also supported using `.`
 For example, if you want to change the `mdl name` which looks like
 ```
 mdl:
- name: xyz
+	name: xyz
 ```
 you can pass `--mdl.name='abc'`
 
