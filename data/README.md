@@ -24,35 +24,24 @@ data
     |-- fc6_feat_5rois
     |-- rgb_motion_1d
     |-- vid_hw_dict.json
-|-- anet_srl_scratch (79M)
+|-- anet_srl_scratch (31M)
     |-- anet_captions_all_splits.json
     |-- anet_ent_cls_bbox_trainval.json
-    |-- anet_entities_cleaned_class_thresh50_trainval.json
-    |-- anet_entities_prepocessed_clss_trainval.json
-    |-- anet_entities_test_1.json
-    |-- anet_entities_test_2.json
-    |-- anet_entities_val_1.json
-    |-- anet_entities_val_2.json
-    |-- cap_anet_trainval.json
     |-- csv_dir
-        |-- train.csv
-        |-- train_postproc.csv
-        |-- val.csv
-        |-- val_postproc.csv
+	 |-- train.csv
+	 |-- train_postproc.csv
+	 |-- val.csv
+	 |-- val_postproc.csv
     |-- dic_anet.json
-|-- anet_verb (260M)
+|-- anet_verb (112M)
     |-- arg_vocab.pkl
     |-- trn_srl_annots_with_ds4_inds.csv
     |-- trn_srl_args_dict_obj_to_ind.json
-    |-- trn_verb_ent_file.csv
     |-- val_srl_annots_with_ds4_inds.csv
     |-- val_srl_args_dict_obj_to_ind.json
-    |-- val_verb_ent_file.csv
-    |-- verb_ent_file.csv
-    |-- verb_lemma_dict.json
 ```
 
-It should ~530 gb of data !!(need to get the exact amount)
+It should ~530 gb of data !!
 
 NOTE: Highly advisable to have the features in SSD; otherwise massive drop in speed!
 

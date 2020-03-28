@@ -2,7 +2,7 @@
 # Downloading script
 
 CUR_DIR=$(pwd)
-DATA_ROOT=${2:-CUR_DIR}
+DATA_ROOT=${2:-$CUR_DIR}
 
 mkdir -p $DATA_ROOT/anet
 
@@ -14,11 +14,17 @@ function gdrive_download () {
 
 function asrl_ann_dwn(){
     echo "Downloading ActivityNet SRL annotations"
-    gdrive_download 1qSsD3AbWqw-KNObNg6N8xbTnF-Bg_eZn anet_verb.zip
-    unzip anet_verb.zip && rm anet_verb.zip
-
-    gdrive_download 1aZyLNP-VXS3stZpenWMuCTRF_NL2gznu anet_srl_scratch.zip
-    unzip anet_srl_scratch.zip && rm anet_srl_scratch.zip
+    cd $DATA_ROOT
+    gdrive_download "1mAZPZcFCDKtO37tqhRcJA_CBGR2o8pB-" anet_srl.zip
+    unzip anet_srl.zip && rm anet_srl.zip
+    cd $CUR_DIR
+    # The above is minimalistic download and should be fine
+    # for most cases.
+    # To get all the files:
+    # gdrive_download 1qSsD3AbWqw-KNObNg6N8xbTnF-Bg_eZn anet_verb.zip
+    # unzip anet_verb.zip && rm anet_verb.zip
+    # gdrive_download 1aZyLNP-VXS3stZpenWMuCTRF_NL2gznu anet_srl_scratch.zip
+    # unzip anet_srl_scratch.zip && rm anet_srl_scratch.zip
     echo "Saved Folder"
 }
 
