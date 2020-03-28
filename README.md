@@ -41,7 +41,7 @@ The hierarchical structure of `yml` is also supported using `.`
 For example, if you want to change the `mdl name` which looks like
 ```
 mdl:
-	name: xyz
+  name: xyz
 ```
 you can pass `--mdl.name='abc'`
 
@@ -84,15 +84,15 @@ For evaluating `test` simply use `--split_type='test'`
 If you are using your own code, but just want to use evaluation, you must save your output in the following format:
 ```
 [
-	{
-		'idx_sent': id of the input query
-		'pred_boxes': # num_srls x num_vids x num_frames x 5d prop boxes
-		'pred_scores': # num_srls x num_vids x num_frames (between 0-1)
-		'pred_cmp': # num_srls x num_frames (only required for sep). Basically, which video to choose
-		'cmp_msk': 1/0s if any videos were padded and hence not considered
-		'targ_cmp': which is the target video. This is in prediction and not ground-truth since we shuffle the video list at runtime
-	},
-	...
+  {
+  'idx_sent': id of the input query
+  'pred_boxes': # num_srls x num_vids x num_frames x 5d prop boxes
+  'pred_scores': # num_srls x num_vids x num_frames (between 0-1)
+  'pred_cmp': # num_srls x num_frames (only required for sep). Basically, which video to choose
+  'cmp_msk': 1/0s if any videos were padded and hence not considered
+  'targ_cmp': which is the target video. This is in prediction and not ground-truth since we shuffle the video list at runtime
+  },
+  ...
 ]
 ```
 
