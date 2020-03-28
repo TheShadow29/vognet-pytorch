@@ -19,13 +19,13 @@ required for SPAT/TEMP).
 ## Preprocessing Steps
 
 1. First download relevant files.
-Optional: specify the data folder where it would be downloaded.
+   Optional: specify the data folder where it would be downloaded.
     ```
     bash download_asrl_parent_ann.sh [save_point]
     ```
     The folder should look like:
     ```
-    anet_srl_scratch
+    anet_cap_ent_files
     |-- anet_captions_all_splits.json (AC captions)
     |-- anet_entities_test_1.json
     |-- anet_entities_test_2.json
@@ -45,8 +45,8 @@ Optional: specify the data folder where it would be downloaded.
     ```
     cache_dir/
     |-- SRL_Anet
-        |-- SRL_Anet_bert_cap_annots.csv  # AC annotations in csv format to input into BERT
-        |-- srl_bert_preds.pkl            # BERT outputs
+	|-- SRL_Anet_bert_cap_annots.csv  # AC annotations in csv format to input into BERT
+	|-- srl_bert_preds.pkl            # BERT outputs
     ```
 
 1. Resize the boxes in AE.
@@ -78,9 +78,9 @@ Optional: specify the data folder where it would be downloaded.
     cd $ROOT
     python dcode/asrl_creator.py
     ```
-    Now `$ROOT/data/anet_verb/` should look like:
+    Now `$ROOT/data/anet_srl_files/` should look like:
     ```
-    anet_verb/
+    anet_srl_files/
     |-- verb_ent_file.csv        # main file with SRLs, BBoxes
     |-- verb_lemma_dict.json     # dictionary of verbs corresponding to their lemma
     ```
@@ -91,7 +91,7 @@ Additionally, create the vocab file for the SRL arguments
     cd $ROOT
     python dcode/prepoc_ds_files.py
     ```
-    This will create `anet_srl_scratch/csv_dir`. It should look like:
+    This will create `anet_cap_ent_files/csv_dir`. It should look like:
     ```
     csv_dir
     |-- train.csv
@@ -100,9 +100,9 @@ Additionally, create the vocab file for the SRL arguments
     |-- val_postproc.csv
     ```
 
-    Further, now `$ROOT/data/anet_verb/` should look like:
+    Further, now `$ROOT/data/anet_srl_files/` should look like:
     ```
-    anet_verb/
+    anet_srl_files/
     |-- trn_verb_ent_file.csv       # train file
     |-- val_verb_ent_file.csv       # val & test file
     |-- verb_ent_file.csv
@@ -115,15 +115,26 @@ Additionally, create the vocab file for the SRL arguments
     python code/contrastive_sampling.py
     ```
 
-    Now your `anet_verb` directory should look like:
+    Now your `anet_srl_files` directory should look like:
     ```
-    anet_verb/
-    |-- trn_srl_annots_with_ds4_inds.csv     # used for training
-    |-- trn_srl_args_dict_obj_to_ind.json    # used for CS
-    |-- trn_verb_ent_file.csv                # not used anymore
-    |-- val_srl_annots_with_ds4_inds.csv     # used for val/test
-    |-- val_srl_args_dict_obj_to_ind.json    # used for CS
-    |-- val_verb_ent_file.csv                # not used anymore
-    |-- verb_ent_file.csv                    # not used anymore
-    |-- verb_lemma_dict.json                 # not used anymore
+    anet_srl_files/
+    |-- trn_asrl_annots.csv			# used for training
+    |-- trn_srl_obj_to_index_dict.json		# used for CS
+    |-- trn_verb_ent_file.csv			# not used anymore
+    |-- val_asrl_annots.csv			# used for val/test
+    |-- val_srl_obj_to_index_dict.json		# used for CS
+    |-- val_verb_ent_file.csv			# not used anymore
+    |-- verb_ent_file.csv			# not used anymore
+    |-- verb_lemma_dict.json			# not used anymore
     ```
+
+1. I have provided drive links to the processed files (generated after completing all the previous steps):
+   1. `anet_cap_ent_files` and `anet_srl_files`: https://drive.google.com/open?id=1mH8TyVPU4w7864Hxiukzg8dnqPIyBuE3
+   1. `SRL_Anet`: https://drive.google.com/open?id=1vGgqc8_-ZBk3ExNroRP-On7ArWN-d8du
+   1. resized proposal h5 files: https://drive.google.com/open?id=1a6UOK90Epz7n-dncKAeFDQP4TBgqdTS9
+   1. fc6_feats_5rois: https://drive.google.com/open?id=13tvBIEAgv4VS5dqkZBK1gvTI_Z22gRLM
+
+   Alternatively, you can download these files from `download_asrl_parent_ann.sh` by passing `asrl_proc_files`:
+   ```
+   bash download_asrl_parent_ann.sh asrl_proc_files
+   ```
