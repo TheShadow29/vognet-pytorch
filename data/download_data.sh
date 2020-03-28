@@ -15,7 +15,7 @@ function gdrive_download () {
 function asrl_ann_dwn(){
     echo "Downloading ActivityNet SRL annotations"
     cd $DATA_ROOT
-    gdrive_download "1mAZPZcFCDKtO37tqhRcJA_CBGR2o8pB-" anet_srl.zip
+    gdrive_download "1WJTRQVs-vSLmJ7I3sef3_IxE0vBtaqFX" anet_srl.zip
     unzip anet_srl.zip && rm anet_srl.zip
     cd $CUR_DIR
     # The above is minimalistic download and should be fine

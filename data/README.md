@@ -23,8 +23,7 @@ data
     |-- fc6_feat_100rois
     |-- fc6_feat_5rois
     |-- rgb_motion_1d
-    |-- vid_hw_dict.json
-|-- anet_srl_scratch (31M)
+|-- anet_cap_ent_files (31M)
     |-- anet_captions_all_splits.json
     |-- anet_ent_cls_bbox_trainval.json
     |-- csv_dir
@@ -33,12 +32,12 @@ data
 	 |-- val.csv
 	 |-- val_postproc.csv
     |-- dic_anet.json
-|-- anet_verb (112M)
+|-- anet_srl_files (112M)
     |-- arg_vocab.pkl
-    |-- trn_srl_annots_with_ds4_inds.csv
-    |-- trn_srl_args_dict_obj_to_ind.json
-    |-- val_srl_annots_with_ds4_inds.csv
-    |-- val_srl_args_dict_obj_to_ind.json
+    |-- trn_asrl_annots.csv
+    |-- trn_srl_obj_to_index_dict.json
+    |-- val_asrl_annots.csv
+    |-- val_srl_obj_to_index_dict.json
 ```
 
 It should ~530 gb of data !!
@@ -52,8 +51,8 @@ For an in-depth overview of the construction, please refer to [DATA PREP README]
 
 1. `fc6_feat_Xrois`: We have 10 frames, for each frame we get X rois. `X=100` is obtained from FasterRCNN trained on Visual Genome. `X=5` is obtained from `X=100` such that ground-truth annotations are included and the remaining are the top scoring boxes. The latter setting allows us to perform easy experimentations.
 1. `rgb_motion_1d`: RGB and FLOW features for frames (1fps) of the video.
-1. `{trn/val}_srl_annots.csv`: The main annotation files required for grounding.
-1. `{trn/val}_dict_obj_to_ind.json`: Dictionary mapping helpful for sampling contrastive examples.
+1. `{trn/val}_asrl_annots.csv`: The main annotation files required for grounding.
+1. `{trn/val}_srl_obj_to_index_dict.json`: Dictionary mapping helpful for sampling contrastive examples.
 
 ## Annotation File Structure:
-To Be Added
+The main annotation files for ASRL are `{trn/val}_asrl_annots.csv`

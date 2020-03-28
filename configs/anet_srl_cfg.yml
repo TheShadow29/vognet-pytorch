@@ -21,21 +21,21 @@ ds:
   max_gt_box: 100
   t_attn_size: 480
   max_seq_length: 20
-  anet_cap_file: "data/anet_srl_scratch/anet_captions_all_splits.json"
-  anet_ent_annot_file: "data/anet_srl_scratch/anet_ent_cls_bbox_trainval.json"
-  anet_ent_split_file: "data/anet_srl_scratch/dic_anet.json"
+  anet_cap_file: "data/anet_cap_ent_files/anet_captions_all_splits.json"
+  anet_ent_annot_file: "data/anet_cap_ent_files/anet_ent_cls_bbox_trainval.json"
+  anet_ent_split_file: "data/anet_cap_ent_files/dic_anet.json"
   include_srl_args: ['ARG0', 'ARG1', 'ARG2', 'ARGM-LOC']
   # Vocab file for SRLs
-  arg_vocab_file: "data/anet_verb/arg_vocab.pkl"
+  arg_vocab_file: "data/anet_srl_files/arg_vocab.pkl"
   # Annot files:
-  trn_ann_file: "data/anet_srl_scratch/csv_dir/train_postproc.csv"
-  val_ann_file: "data/anet_srl_scratch/csv_dir/val_postproc.csv"
+  trn_ann_file: "data/anet_cap_ent_files/csv_dir/train_postproc.csv"
+  val_ann_file: "data/anet_cap_ent_files/csv_dir/val_postproc.csv"
   # Object Mappings:
-  trn_ds4_dicts: "data/anet_verb/trn_srl_args_dict_obj_to_ind.json"
-  val_ds4_dicts: "data/anet_verb/val_srl_args_dict_obj_to_ind.json"
+  trn_ds4_dicts: "data/anet_srl_files/trn_srl_obj_to_index_dict.json"
+  val_ds4_dicts: "data/anet_srl_files/val_srl_obj_to_index_dict.json"
   # ASRL with indices for SPAT/TEMP
-  trn_ds4_inds: "data/anet_verb/trn_srl_annots_with_ds4_inds.csv"
-  val_ds4_inds: "data/anet_verb/val_srl_annots_with_ds4_inds.csv"
+  trn_ds4_inds: "data/anet_srl_files/trn_asrl_annots.csv"
+  val_ds4_inds: "data/anet_srl_files/val_asrl_annots.csv"
   # Sampling mechanism
   trn_sample: "ds4_random"
   val_sample: "ds4"
