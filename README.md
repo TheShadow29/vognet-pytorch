@@ -1,4 +1,7 @@
 # vognet-pytorch
+[**Video Object Grounding using Semantic Roles in Language Description**](https://arxiv.org/abs/2003.10606)<br>
+[Arka Sadhu](https://theshadow29.github.io/), [Kan Chen](https://kanchen.info/) [Ram Nevatia](https://sites.usc.edu/iris-cvlab/professor-ram-nevatia/)
+[CVPR 2020](http://cvpr2020.thecvf.com/)
 
 This is the official repository for CVPR20 paper [Video Object Grounding using Semantic Roles in Language Description](https://arxiv.org/abs/2003.10606).
 
