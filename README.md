@@ -3,6 +3,11 @@
 [Arka Sadhu](https://theshadow29.github.io/), [Kan Chen](https://kanchen.info/) [Ram Nevatia](https://sites.usc.edu/iris-cvlab/professor-ram-nevatia/)<br>
 [CVPR 2020](http://cvpr2020.thecvf.com/)
 
+Video Object Grounding (VOG) is the task of localizing objects in a video referred in a query sentence description.
+We elevate the role of object relations via a novel contrastive sampling method applied to a new dataset called ActivityNet-SRL (ASRL) based on existing caption and grounding datasets. 
+
+![](media/Intro_fig.png)
+
 This is the official repository for CVPR20 paper [Video Object Grounding using Semantic Roles in Language Description](https://arxiv.org/abs/2003.10606).
 
 It includes:
