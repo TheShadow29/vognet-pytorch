@@ -10,7 +10,7 @@
 [CVPR 2020](http://cvpr2020.thecvf.com/)
 
 **Video Object Grounding (VOG)** is the task of localizing objects in a video referred in a query sentence description.
-We elevate the role of object relations via a novel contrastive sampling method applied to a newly contributed dataset called ActivityNet-SRL (ASRL). 
+We elevate the role of object relations via spatial and temporal concatenation of contrastive examples sampled from a newly contributed dataset called ActivityNet-SRL (ASRL). 
 
 ![](./media/contrastive_examples.png)
 
