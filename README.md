@@ -22,23 +22,25 @@ This repository includes:
 Code has been modularized from its initial implementation.
 It should be easy to extend the code for other datasets by inheriting relevant modules. 
 
+## Installation
+Requirements:
+- python>=3.6
+- pytorch==1.1 (should work with pytorch >=1.3 as well but not tested)
+
+To use the same environment you can use `conda` and the environment file `conda_env_vog.yml` file provided. Please refer to [Miniconda](https://docs.conda.io/en/latest/miniconda.html) for details on installing `conda`.
+
+    ```
+    MINICONDA_ROOT=[to your Miniconda/Anaconda root directory]
+    conda env create -f conda_env_vog.yml --prefix $MINICONDA_ROOT/envs/vog_pyt
+    conda activate vog_pyt
+    ```
+
 ## Quick Start
 1. Clone repo:
     ```
     git clone https://github.com/TheShadow29/vognet-pytorch.git
     cd vognet-pytorch
     export ROOT=$(pwd)
-    ```
-1. Install Requirements:
-    - python>=3.6
-    - pytorch==1.1
-
-    To use the same environment you can use `conda` and the environment file `conda_env_vog.yml` file provided. Please refer to [Miniconda](https://docs.conda.io/en/latest/miniconda.html) for details on installing `conda`.
-
-    ```
-    MINICONDA_ROOT=[to your Miniconda/Anaconda root directory]
-    conda env create -f conda_env_vog.yml --prefix $MINICONDA_ROOT/envs/vog_pyt
-    conda activate vog_pyt
     ```
 1. Download Data (~530gb) (See [DATA_README](./data/README.md) for more details)
     ```
