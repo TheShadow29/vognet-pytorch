@@ -1,9 +1,14 @@
 # vognet-pytorch
+[![LICENSE](https://img.shields.io/badge/license-MIT-green)](https://github.com/TheShadow29/vognet-pytorch/blob/master/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.6-blue)](https://www.python.org/)
+![PyTorch](https://img.shields.io/badge/pytorch-1.1-yellow)
+
+
 [**Video Object Grounding using Semantic Roles in Language Description**](https://arxiv.org/abs/2003.10606)<br>
 [Arka Sadhu](https://theshadow29.github.io/), [Kan Chen](https://kanchen.info/) [Ram Nevatia](https://sites.usc.edu/iris-cvlab/professor-ram-nevatia/)<br>
 [CVPR 2020](http://cvpr2020.thecvf.com/)
 
-Video Object Grounding (VOG) is the task of localizing objects in a video referred in a query sentence description.
+**Video Object Grounding (VOG)** is the task of localizing objects in a video referred in a query sentence description.
 We elevate the role of object relations via a novel contrastive sampling method applied to a new dataset called ActivityNet-SRL (ASRL) based on existing caption and grounding datasets. 
 
 ![](./media/contrastive_examples.png)
