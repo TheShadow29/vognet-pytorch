@@ -2,6 +2,7 @@
 [![LICENSE](https://img.shields.io/badge/license-MIT-green)](https://github.com/TheShadow29/vognet-pytorch/blob/master/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.6-blue)](https://www.python.org/)
 ![PyTorch](https://img.shields.io/badge/pytorch-1.1-yellow)
+[![Arxiv](https://img.shields.io/badge/Arxiv-2003.10606-purple)](https://arxiv.org/abs/2003.10606)
 
 
 [**Video Object Grounding using Semantic Roles in Language Description**](https://arxiv.org/abs/2003.10606)<br>
