@@ -8,36 +8,46 @@ We elevate the role of object relations via a novel contrastive sampling method 
 
 <!-- <img src="media/Intro_fig.png width=75% align=middle> -->
 
-This is the official repository for CVPR20 paper [Video Object Grounding using Semantic Roles in Language Description](https://arxiv.org/abs/2003.10606).
-
-It includes:
-1. code to create the ActivityNet-SRL dataset under `dcode/`
-1. code to run all the experiments provided in the paper under `code/`
+This repository includes:
+1. code to create the ActivityNet-SRL dataset under [`dcode/`](./dcode)
+1. code to run all the experiments provided in the paper under [`code/`](./code)
+1. To foster reproducibility of our results, links to all trained models in the paper along with their log files are provided in [EXPTS.md](./EXPTS.md)
 
 Code has been modularized from its initial implementation.
 It should be easy to extend the code for other datasets by inheriting relevant modules. 
 
-[EXPTS.md](./EXPTS.md) contains details on reproducing the results in the paper with pre-trained models and log files.
+## Quick Start
+1. Clone repo:
+    ```
+    git clone https://github.com/TheShadow29/vognet-pytorch.git
+    cd vognet-pytorch
+    export ROOT=$(pwd)
+    ```
+1. Install Requirements:
+    - python>=3.6
+    - pytorch==1.1
 
-## Install
+    To use the same environment you can use `conda` and the environment file `conda_env_vog.yml` file provided. Please refer to [Miniconda](https://docs.conda.io/en/latest/miniconda.html) for details on installing `conda`.
 
-Requirements:
- - python>=3.6
-  - pytorch==1.1
-
-  To use the same environment you can use `conda` and the environment file `conda_env_vog.yml` file provided. Please refer to [Miniconda](https://docs.conda.io/en/latest/miniconda.html) for details on installing `conda`.
-
-  ```
-  MINICONDA_ROOT=[to your Miniconda/Anaconda root directory]
-  conda env create -f conda_env_vog.yml --prefix $MINICONDA_ROOT/envs/vog_pyt
-  conda activate vog_pyt
-  ```
-
+    ```
+    MINICONDA_ROOT=[to your Miniconda/Anaconda root directory]
+    conda env create -f conda_env_vog.yml --prefix $MINICONDA_ROOT/envs/vog_pyt
+    conda activate vog_pyt
+    ```
+1. Download Data (~530gb) (See [DATA_README](./data/README.md) for more details)
+    ```
+    cd $ROOT/data
+    bash download_data.sh all [data_folder]
+    ```
+1. Train Models
+    ```
+    cd $ROOT
+    python code/main_dist.py "spat_vog_gt5" --ds.exp_setting='gt5' --mdl.name='vog' --mdl.obj_tx.use_rel=True --mdl.mul_tx.use_rel=True --train.prob_thresh=0.2 --train.bs=4 --train.epochs=10 --train.lr=1e-4
+    ```
 ## Data Preparation
+If you just want to use ASRL, you can refer to   [DATA_README](./data/README.md). It contains direct links to download ASRL
 
-If you just want to use ASRL, you can refer to [DATA_README](./data/README.md)
-
-If instead, you want to recreate ASRL from scratch, or perhaps want to extend to a newer dataset, refer to [DATA_PREP_README.md](./dcode/README.md)
+If instead, you want to recreate ASRL from ActivityNet Entities and ActivityNet Captions, or perhaps want to extend to a newer dataset, refer to [DATA_PREP_README.md](./dcode/README.md)
 
 ## Training
 Basic usage is `python code/main_dist.py "experiment_name" --arg1=val1 --arg2=val2` and the arg1, arg2 can be found in `configs/anet_srl_cfg.yml`.
