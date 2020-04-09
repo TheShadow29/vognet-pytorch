@@ -1,4 +1,8 @@
-# File Organization
+# Model
+
+![](../media/model_fig.png)
+
+## File Organization
 
 1. `main_dist.py` is the main file.
 1. `dat_loader_simple.py` processes the data. In particular, the SPAT/TEMP/SEP part is modular, can be easily extended to a newer dataset.
@@ -13,4 +17,4 @@
 1. `extended_config.py` has some handy configuration utils.
 1. `transformer_code.py` has the transformer implementation, also has the relative transformer which uses relative position encoding (RPE).
 
-Some other useful files are under [`utils` folder](../utils/)
+Some other useful files are under [`utils`](../utils/)

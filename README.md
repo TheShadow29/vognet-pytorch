@@ -6,7 +6,7 @@
 Video Object Grounding (VOG) is the task of localizing objects in a video referred in a query sentence description.
 We elevate the role of object relations via a novel contrastive sampling method applied to a new dataset called ActivityNet-SRL (ASRL) based on existing caption and grounding datasets. 
 
-<!-- <img src="media/Intro_fig.png width=75% align=middle> -->
+![](./media/contrastive_examples.png)
 
 This repository includes:
 1. code to create the ActivityNet-SRL dataset under [`dcode/`](./dcode)
